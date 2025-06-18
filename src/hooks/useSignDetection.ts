@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sign, DetectionResult } from '@/types/sign';
 import { signsDatabase } from '@/data/signsDatabase';
 import { toast } from 'sonner';
-import { Hands, Results } from '@mediapipe/hands';
+import { Hands, Results, HAND_CONNECTIONS } from '@mediapipe/hands';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 
 export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
@@ -71,7 +71,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       
       // Dibujar landmarks
       for (const landmarks of results.multiHandLandmarks) {
-        drawConnectors(ctx, landmarks, Hands.HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
         drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1});
       }
       
