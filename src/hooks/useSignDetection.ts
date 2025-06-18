@@ -1,15 +1,24 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sign, DetectionResult } from '@/types/sign';
 import { useSigns } from '@/hooks/useSigns';
 import { toast } from 'sonner';
-import { Hands, Results, HAND_CONNECTIONS } from '@mediapipe/hands';
-import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
+
+// Importación correcta de MediaPipe
+declare global {
+  interface Window {
+    Hands: any;
+    drawConnectors: any;
+    drawLandmarks: any;
+    HAND_CONNECTIONS: any;
+  }
+}
 
 export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const [detectedSign, setDetectedSign] = useState<DetectionResult | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
   const { signs, getSignByName } = useSigns();
-  const handsRef = useRef<Hands | null>(null);
+  const handsRef = useRef<any>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   
   // Sistema mejorado para evitar landmarks pillados - referencias estables
@@ -17,11 +26,12 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const landmarksHistoryRef = useRef<number[][][]>([]);
   const frameCountRef = useRef(0);
   const isInitializedRef = useRef(false);
+  const isMediaPipeLoadedRef = useRef(false);
   
   // Constantes para control de detección
   const DETECTION_COOLDOWN = 2000;
-  const HISTORY_SIZE = 2; // Historial muy pequeño para evitar lag
-  const RESET_INTERVAL = 60; // Reset cada 60 frames (~2 segundos)
+  const HISTORY_SIZE = 2;
+  const RESET_INTERVAL = 60;
 
   // Función de reset mejorada
   const resetDetectionSystem = useCallback(() => {
@@ -32,11 +42,42 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     console.log('🔄 Sistema de detección reiniciado completamente');
   }, []);
 
+  // Cargar MediaPipe desde CDN
+  const loadMediaPipe = useCallback(async () => {
+    if (isMediaPipeLoadedRef.current) return true;
+    
+    try {
+      // Cargar scripts de MediaPipe
+      const scripts = [
+        'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+        'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js',
+        'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js',
+        'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+      ];
+
+      for (const src of scripts) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = src;
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error(`Failed to load ${src}`));
+          document.head.appendChild(script);
+        });
+      }
+
+      isMediaPipeLoadedRef.current = true;
+      console.log('✅ MediaPipe cargado exitosamente');
+      return true;
+    } catch (error) {
+      console.error('❌ Error cargando MediaPipe:', error);
+      return false;
+    }
+  }, []);
+
   // Función para suavizar landmarks con reset automático frecuente
   const smoothLandmarks = useCallback((currentLandmarks: any[]) => {
     frameCountRef.current++;
     
-    // Reset automático cada cierto número de frames
     if (frameCountRef.current >= RESET_INTERVAL) {
       resetDetectionSystem();
       return [];
@@ -46,14 +87,12 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       hand.map((point: any) => [point.x, point.y, point.z || 0])
     );
     
-    // Mantener historial muy pequeño
     if (landmarksHistoryRef.current.length >= HISTORY_SIZE) {
       landmarksHistoryRef.current.shift();
     }
     
     landmarksHistoryRef.current.push(normalizedLandmarks);
     
-    // Suavizado muy ligero - solo promedio simple entre frame actual y anterior
     if (landmarksHistoryRef.current.length === 2) {
       const current = landmarksHistoryRef.current[1];
       const previous = landmarksHistoryRef.current[0];
@@ -160,7 +199,6 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   // Nueva función para detectar seña de "Fiebre Alta"
   const detectFeverSign = useCallback((landmarks: any[]) => {
     for (const hand of landmarks) {
-      // Puntos clave para la seña de fiebre alta
       const thumb = hand[4];
       const index = hand[8];
       const middle = hand[12];
@@ -169,13 +207,11 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       const wrist = hand[0];
       const palmBase = hand[5];
       
-      // Detectar si la mano está en posición vertical con dedos específicos
       const isVerticalPosition = Math.abs(wrist.x - middle.x) < 0.1;
-      const thumbPosition = thumb.y < index.y; // Pulgar arriba del índice
+      const thumbPosition = thumb.y < index.y;
       const fingersAlignment = Math.abs(index.x - middle.x) < 0.05 && 
                               Math.abs(middle.x - ring.x) < 0.05;
       
-      // Verificar distancias específicas de la seña de fiebre
       const thumbIndexDistance = Math.sqrt(
         Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2)
       );
@@ -183,7 +219,6 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       const palmHeight = Math.abs(wrist.y - palmBase.y);
       const fingerSpread = Math.abs(index.x - pinky.x);
       
-      // Condiciones específicas para fiebre alta basadas en la imagen
       const isCorrectThumbPosition = thumbIndexDistance > 0.03 && thumbIndexDistance < 0.12;
       const isCorrectPalmPosition = palmHeight > 0.08 && palmHeight < 0.15;
       const isCorrectFingerSpread = fingerSpread > 0.08 && fingerSpread < 0.2;
@@ -212,7 +247,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   }, []);
 
   // Función principal de procesamiento de resultados
-  const onResults = useCallback(async (results: Results) => {
+  const onResults = useCallback(async (results: any) => {
     if (!canvasRef.current) return;
     
     const canvas = canvasRef.current;
@@ -225,17 +260,41 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       setIsDetecting(true);
       
+      // Dibujar puntos de referencia usando MediaPipe
+      results.multiHandLandmarks.forEach((landmarks: any, index: number) => {
+        // Dibujar conexiones de la mano
+        if (window.drawConnectors && window.HAND_CONNECTIONS) {
+          const color = index === 0 ? '#00FF00' : '#0099FF';
+          window.drawConnectors(ctx, landmarks, window.HAND_CONNECTIONS, {color, lineWidth: 2});
+        }
+        
+        // Dibujar puntos de landmarks
+        if (window.drawLandmarks) {
+          window.drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 4});
+        }
+        
+        // Dibujar puntos numerados para depuración
+        landmarks.forEach((landmark: any, i: number) => {
+          const x = landmark.x * canvas.width;
+          const y = landmark.y * canvas.height;
+          
+          // Dibujar círculo del punto
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, 2 * Math.PI);
+          ctx.fillStyle = '#FF0000';
+          ctx.fill();
+          
+          // Dibujar número del punto
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '10px Arial';
+          ctx.fillText(i.toString(), x + 5, y - 5);
+        });
+      });
+      
       // Suavizar landmarks
       const smoothedLandmarks = smoothLandmarks(results.multiHandLandmarks);
       
-      // Solo dibujar si tenemos landmarks suavizados
       if (smoothedLandmarks.length > 0) {
-        results.multiHandLandmarks.forEach((landmarks, index) => {
-          const color = index === 0 ? '#00FF00' : '#0099FF';
-          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color, lineWidth: 2});
-          drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
-        });
-        
         // Detectar señas con prioridad
         const feverResult = detectFeverSign(results.multiHandLandmarks);
         const okResult = detectOKSign(results.multiHandLandmarks);
@@ -316,7 +375,6 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       
       setTimeout(() => setIsDetecting(false), 100);
     } else {
-      // Reset cuando no hay manos detectadas por un tiempo
       if (frameCountRef.current > 10) {
         resetDetectionSystem();
       }
@@ -329,15 +387,30 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     
     const initializeHands = async () => {
       try {
-        const hands = new Hands({
-          locateFile: (file) => {
+        console.log('🔄 Iniciando carga de MediaPipe...');
+        
+        // Cargar MediaPipe
+        const loaded = await loadMediaPipe();
+        if (!loaded) {
+          throw new Error('No se pudo cargar MediaPipe');
+        }
+        
+        // Esperar un poco para asegurar que todo esté cargado
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        if (!window.Hands) {
+          throw new Error('MediaPipe Hands no está disponible');
+        }
+        
+        const hands = new window.Hands({
+          locateFile: (file: string) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
           }
         });
         
         hands.setOptions({
           maxNumHands: 2,
-          modelComplexity: 0, // Reducido para mejor rendimiento
+          modelComplexity: 1,
           minDetectionConfidence: 0.7,
           minTrackingConfidence: 0.5
         });
@@ -345,6 +418,8 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         hands.onResults(onResults);
         handsRef.current = hands;
         isInitializedRef.current = true;
+        
+        console.log('✅ MediaPipe inicializado correctamente');
         
         const processFrame = async () => {
           if (videoElement && videoElement.readyState >= 2 && handsRef.current) {
@@ -361,7 +436,8 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         
         processFrame();
       } catch (error) {
-        console.error('Error inicializando MediaPipe:', error);
+        console.error('❌ Error inicializando MediaPipe:', error);
+        toast.error('Error al inicializar la detección de manos');
       }
     };
     
@@ -379,7 +455,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       isInitializedRef.current = false;
       resetDetectionSystem();
     };
-  }, [videoElement, onResults, resetDetectionSystem]);
+  }, [videoElement, onResults, resetDetectionSystem, loadMediaPipe]);
 
   // Callback para establecer la referencia del canvas
   const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
