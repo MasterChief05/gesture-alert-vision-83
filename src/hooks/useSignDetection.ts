@@ -1,6 +1,7 @@
+
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sign, DetectionResult } from '@/types/sign';
-import { signsDatabase } from '@/data/signsDatabase';
+import { useSigns } from '@/hooks/useSigns';
 import { toast } from 'sonner';
 import { Hands, Results, HAND_CONNECTIONS } from '@mediapipe/hands';
 import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
@@ -8,6 +9,7 @@ import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const [detectedSign, setDetectedSign] = useState<DetectionResult | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const { signs, getSignByName } = useSigns();
   const handsRef = useRef<Hands | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   
@@ -71,7 +73,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return false;
   };
 
-  const onResults = useCallback((results: Results) => {
+  const onResults = useCallback(async (results: Results) => {
     if (!canvasRef.current) return;
     
     const canvas = canvasRef.current;
@@ -90,9 +92,9 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1});
       }
       
-      // Detectar señas con cooldown
+      // Detectar señas con cooldown y buscar en IndexedDB
       if (detectLoveSign(results.multiHandLandmarks) && canSendAlert("Amor")) {
-        const loveSign = signsDatabase.find(sign => sign.name === "Amor");
+        const loveSign = await getSignByName("Amor");
         if (loveSign) {
           const detection: DetectionResult = {
             sign: loveSign,
@@ -102,14 +104,14 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           
           setDetectedSign(detection);
           toast.success("💖 AMOR detectado", {
-            description: "Se ha reconocido la seña de amor",
+            description: "Se ha reconocido la seña de amor de tu base de datos local",
             duration: 4000,
           });
           
           setTimeout(() => setDetectedSign(null), 4000);
         }
       } else if (detectPeaceSign(results.multiHandLandmarks) && canSendAlert("Paz")) {
-        const peaceSign = signsDatabase.find(sign => sign.name === "Paz");
+        const peaceSign = await getSignByName("Paz");
         if (peaceSign) {
           const detection: DetectionResult = {
             sign: peaceSign,
@@ -119,7 +121,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           
           setDetectedSign(detection);
           toast.success("✌️ PAZ detectada", {
-            description: "Se ha reconocido la seña de paz",
+            description: "Se ha reconocido la seña de paz de tu base de datos local",
             duration: 4000,
           });
           
@@ -129,7 +131,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       
       setTimeout(() => setIsDetecting(false), 100);
     }
-  }, []);
+  }, [getSignByName]);
 
   useEffect(() => {
     if (!videoElement) return;
@@ -173,6 +175,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   return {
     detectedSign,
     isDetecting,
-    setCanvasRef
+    setCanvasRef,
+    availableSigns: signs
   };
 };
