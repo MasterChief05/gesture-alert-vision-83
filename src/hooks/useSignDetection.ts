@@ -13,101 +13,99 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const handsRef = useRef<Hands | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   
-  // Sistema mejorado para evitar landmarks pillados
-  const lastDetectionRef = useRef<{ sign: string; timestamp: number; frameCount: number } | null>(null);
-  const DETECTION_COOLDOWN = 1500; // Reducido para mejor respuesta
-  const landmarksHistoryRef = useRef<number[][][]>([]); // Historial más pequeño
-  const HISTORY_SIZE = 3; // Reducido para menos lag
+  // Sistema mejorado para evitar landmarks pillados - referencias estables
+  const lastDetectionRef = useRef<{ sign: string; timestamp: number } | null>(null);
+  const landmarksHistoryRef = useRef<number[][][]>([]);
   const frameCountRef = useRef(0);
+  const isInitializedRef = useRef(false);
   
-  // Reset automático para evitar landmarks pillados
-  const resetDetectionSystem = () => {
+  // Constantes para control de detección
+  const DETECTION_COOLDOWN = 2000;
+  const HISTORY_SIZE = 2; // Historial muy pequeño para evitar lag
+  const RESET_INTERVAL = 60; // Reset cada 60 frames (~2 segundos)
+
+  // Función de reset mejorada
+  const resetDetectionSystem = useCallback(() => {
     landmarksHistoryRef.current = [];
     frameCountRef.current = 0;
     lastDetectionRef.current = null;
-    console.log('🔄 Sistema de detección reiniciado');
-  };
+    setDetectedSign(null);
+    console.log('🔄 Sistema de detección reiniciado completamente');
+  }, []);
 
-  // Función para suavizar landmarks con reset automático
-  const smoothLandmarks = (currentLandmarks: any[]) => {
+  // Función para suavizar landmarks con reset automático frecuente
+  const smoothLandmarks = useCallback((currentLandmarks: any[]) => {
     frameCountRef.current++;
     
-    // Reset cada 180 frames (6 segundos a 30fps) para evitar acumulación
-    if (frameCountRef.current > 180) {
+    // Reset automático cada cierto número de frames
+    if (frameCountRef.current >= RESET_INTERVAL) {
       resetDetectionSystem();
-    }
-    
-    if (landmarksHistoryRef.current.length >= HISTORY_SIZE) {
-      landmarksHistoryRef.current.shift();
+      return [];
     }
     
     const normalizedLandmarks = currentLandmarks.map(hand => 
       hand.map((point: any) => [point.x, point.y, point.z || 0])
     );
     
+    // Mantener historial muy pequeño
+    if (landmarksHistoryRef.current.length >= HISTORY_SIZE) {
+      landmarksHistoryRef.current.shift();
+    }
+    
     landmarksHistoryRef.current.push(normalizedLandmarks);
     
-    // Suavizado más ligero para mejor respuesta
-    if (landmarksHistoryRef.current.length > 1) {
-      const smoothed = normalizedLandmarks.map((hand, handIndex) => 
+    // Suavizado muy ligero - solo promedio simple entre frame actual y anterior
+    if (landmarksHistoryRef.current.length === 2) {
+      const current = landmarksHistoryRef.current[1];
+      const previous = landmarksHistoryRef.current[0];
+      
+      return current.map((hand, handIndex) => 
         hand.map((point, pointIndex) => {
-          const recent = landmarksHistoryRef.current.slice(-2); // Solo últimos 2 frames
-          const sum = recent.reduce((acc, frame) => {
-            if (frame[handIndex] && frame[handIndex][pointIndex]) {
-              return [
-                acc[0] + frame[handIndex][pointIndex][0],
-                acc[1] + frame[handIndex][pointIndex][1],
-                acc[2] + (frame[handIndex][pointIndex][2] || 0)
-              ];
-            }
-            return acc;
-          }, [0, 0, 0]);
-          
-          const count = recent.length;
-          return [sum[0] / count, sum[1] / count, sum[2] / count];
+          if (previous[handIndex] && previous[handIndex][pointIndex]) {
+            const prev = previous[handIndex][pointIndex];
+            return [
+              (point[0] + prev[0]) / 2,
+              (point[1] + prev[1]) / 2,
+              (point[2] + prev[2]) / 2
+            ];
+          }
+          return point;
         })
       );
-      return smoothed;
     }
     
     return normalizedLandmarks;
-  };
+  }, [resetDetectionSystem]);
 
-  // Nueva función para detectar seña "OK"
-  const detectOKSign = (landmarks: any[]) => {
+  // Función mejorada para detectar seña "OK"
+  const detectOKSign = useCallback((landmarks: any[]) => {
     for (const hand of landmarks) {
-      const thumb = hand[4];      // Punta del pulgar
-      const index = hand[8];      // Punta del índice
-      const middle = hand[12];    // Punta del medio
-      const ring = hand[16];      // Punta del anular
-      const pinky = hand[20];     // Punta del meñique
-      const thumbBase = hand[3];  // Base del pulgar
-      const indexBase = hand[5];  // Base del índice
+      const thumb = hand[4];
+      const index = hand[8];
+      const middle = hand[12];
+      const ring = hand[16];
+      const pinky = hand[20];
+      const indexBase = hand[5];
       
-      // Distancia entre pulgar e índice (deben estar cerca para formar círculo)
       const thumbIndexDistance = Math.sqrt(
         Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2)
       );
       
-      // Verificar que otros dedos estén extendidos
       const middleExtended = (indexBase.y - middle.y) > 0.04;
       const ringExtended = (indexBase.y - ring.y) > 0.04;
       const pinkyExtended = (indexBase.y - pinky.y) > 0.04;
-      
-      // Verificar que el círculo sea del tamaño correcto
       const isCircleSize = thumbIndexDistance > 0.02 && thumbIndexDistance < 0.08;
       
       if (isCircleSize && middleExtended && ringExtended && pinkyExtended) {
         const confidence = Math.max(0.85, 1.0 - thumbIndexDistance * 8);
-        console.log(`👌 OK detectado - Distancia: ${thumbIndexDistance}, Confianza: ${confidence}`);
         return { detected: true, confidence };
       }
     }
     return { detected: false, confidence: 0 };
-  };
+  }, []);
 
-  // Función mejorada para detectar seña de amor
-  const detectLoveSign = (landmarks: any[]) => {
+  // Función para detectar seña de amor
+  const detectLoveSign = useCallback((landmarks: any[]) => {
     if (landmarks.length < 2) return { detected: false, confidence: 0 };
     
     const leftHand = landmarks[0];
@@ -130,16 +128,12 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
                         wristDistance > 0.15 && 
                         handsHeight < 0.1;
     
-    let confidence = 0;
-    if (isHeartShape) {
-      confidence = Math.max(0.8, 1.0 - (thumbDistance + indexDistance) * 2);
-    }
-    
+    const confidence = isHeartShape ? Math.max(0.8, 1.0 - (thumbDistance + indexDistance) * 2) : 0;
     return { detected: isHeartShape, confidence };
-  };
+  }, []);
 
-  // Función mejorada para detectar seña de paz
-  const detectPeaceSign = (landmarks: any[]) => {
+  // Función para detectar seña de paz
+  const detectPeaceSign = useCallback((landmarks: any[]) => {
     for (const hand of landmarks) {
       const indexTip = hand[8];
       const middleTip = hand[12];
@@ -162,66 +156,22 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       }
     }
     return { detected: false, confidence: 0 };
-  };
+  }, []);
 
-  // Función para comparar con señas almacenadas (mejorada)
-  const compareWithStoredSigns = async (currentLandmarks: number[][]) => {
-    for (const sign of signs) {
-      if (sign.landmarks && sign.landmarks.length > 0) {
-        const similarity = calculateLandmarkSimilarity(currentLandmarks, sign.landmarks);
-        if (similarity > 0.70) { // Umbral más permisivo
-          return { sign, confidence: similarity };
-        }
-      }
-    }
-    return null;
-  };
-
-  // Función mejorada para calcular similitud
-  const calculateLandmarkSimilarity = (landmarks1: number[][], landmarks2: number[][]) => {
-    if (!landmarks1 || !landmarks2 || landmarks1.length === 0 || landmarks2.length === 0) {
-      return 0;
-    }
-
-    let totalDistance = 0;
-    let pointCount = 0;
-    const minLength = Math.min(landmarks1.length, landmarks2.length);
-    
-    for (let i = 0; i < minLength; i++) {
-      if (landmarks1[i] && landmarks2[i]) {
-        const dx = landmarks1[i][0] - landmarks2[i][0];
-        const dy = landmarks1[i][1] - landmarks2[i][1];
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        totalDistance += distance;
-        pointCount++;
-      }
-    }
-
-    if (pointCount === 0) return 0;
-    
-    const avgDistance = totalDistance / pointCount;
-    const similarity = Math.max(0, 1 - (avgDistance * 4)); // Más tolerante
-    
-    return similarity;
-  };
-
-  // Sistema mejorado de cooldown con reset automático
-  const canSendAlert = (signName: string) => {
+  // Sistema de cooldown mejorado
+  const canSendAlert = useCallback((signName: string) => {
     const now = Date.now();
     if (!lastDetectionRef.current || 
         lastDetectionRef.current.sign !== signName || 
         (now - lastDetectionRef.current.timestamp) > DETECTION_COOLDOWN) {
       
-      lastDetectionRef.current = { 
-        sign: signName, 
-        timestamp: now,
-        frameCount: frameCountRef.current
-      };
+      lastDetectionRef.current = { sign: signName, timestamp: now };
       return true;
     }
     return false;
-  };
+  }, []);
 
+  // Función principal de procesamiento de resultados
   const onResults = useCallback(async (results: Results) => {
     if (!canvasRef.current) return;
     
@@ -229,145 +179,151 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
+    // Limpiar canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       setIsDetecting(true);
       
-      // Suavizar landmarks con sistema mejorado
+      // Suavizar landmarks
       const smoothedLandmarks = smoothLandmarks(results.multiHandLandmarks);
       
-      // Dibujar landmarks con colores dinámicos
-      results.multiHandLandmarks.forEach((landmarks, index) => {
-        const color = index === 0 ? '#00FF00' : '#0099FF';
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color, lineWidth: 2});
-        drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
-      });
-      
-      // Detectar señas predefinidas
-      const loveResult = detectLoveSign(results.multiHandLandmarks);
-      const peaceResult = detectPeaceSign(results.multiHandLandmarks);
-      const okResult = detectOKSign(results.multiHandLandmarks);
-      
-      const flatLandmarks = smoothedLandmarks.flat();
-      
-      // Verificar señas con mejor prioridad
-      if (okResult.detected && okResult.confidence > 0.85 && canSendAlert("OK")) {
-        const okSign = await getSignByName("OK");
-        if (okSign) {
-          const detection: DetectionResult = {
-            sign: okSign,
-            confidence: okResult.confidence,
-            timestamp: new Date()
-          };
-          
-          setDetectedSign(detection);
-          toast.success("👌 OK detectado", {
-            description: `Confianza: ${(okResult.confidence * 100).toFixed(1)}%`,
-            duration: 2500,
-          });
-          
-          setTimeout(() => setDetectedSign(null), 2500);
-        }
-      } else if (loveResult.detected && loveResult.confidence > 0.8 && canSendAlert("Amor")) {
-        const loveSign = await getSignByName("Amor");
-        if (loveSign) {
-          const detection: DetectionResult = {
-            sign: loveSign,
-            confidence: loveResult.confidence,
-            timestamp: new Date()
-          };
-          
-          setDetectedSign(detection);
-          toast.success("💖 AMOR detectado", {
-            description: `Confianza: ${(loveResult.confidence * 100).toFixed(1)}%`,
-            duration: 2500,
-          });
-          
-          setTimeout(() => setDetectedSign(null), 2500);
-        }
-      } else if (peaceResult.detected && peaceResult.confidence > 0.8 && canSendAlert("Paz")) {
-        const peaceSign = await getSignByName("Paz");
-        if (peaceSign) {
-          const detection: DetectionResult = {
-            sign: peaceSign,
-            confidence: peaceResult.confidence,
-            timestamp: new Date()
-          };
-          
-          setDetectedSign(detection);
-          toast.success("✌️ PAZ detectada", {
-            description: `Confianza: ${(peaceResult.confidence * 100).toFixed(1)}%`,
-            duration: 2500,
-          });
-          
-          setTimeout(() => setDetectedSign(null), 2500);
-        }
-      } else {
-        // Comparar con señas almacenadas
-        const storedMatch = await compareWithStoredSigns(flatLandmarks);
-        if (storedMatch && canSendAlert(storedMatch.sign.name)) {
-          const detection: DetectionResult = {
-            sign: storedMatch.sign,
-            confidence: storedMatch.confidence,
-            timestamp: new Date()
-          };
-          
-          setDetectedSign(detection);
-          toast.success(`🖐️ ${storedMatch.sign.name.toUpperCase()} detectada`, {
-            description: `Confianza: ${(storedMatch.confidence * 100).toFixed(1)}%`,
-            duration: 2500,
-          });
-          
-          setTimeout(() => setDetectedSign(null), 2500);
+      // Solo dibujar si tenemos landmarks suavizados
+      if (smoothedLandmarks.length > 0) {
+        results.multiHandLandmarks.forEach((landmarks, index) => {
+          const color = index === 0 ? '#00FF00' : '#0099FF';
+          drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color, lineWidth: 2});
+          drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
+        });
+        
+        // Detectar señas
+        const okResult = detectOKSign(results.multiHandLandmarks);
+        const loveResult = detectLoveSign(results.multiHandLandmarks);
+        const peaceResult = detectPeaceSign(results.multiHandLandmarks);
+        
+        // Procesar detecciones con prioridad
+        if (okResult.detected && okResult.confidence > 0.85 && canSendAlert("OK")) {
+          const okSign = await getSignByName("OK");
+          if (okSign) {
+            const detection: DetectionResult = {
+              sign: okSign,
+              confidence: okResult.confidence,
+              timestamp: new Date()
+            };
+            
+            setDetectedSign(detection);
+            toast.success("👌 OK detectado", {
+              description: `Confianza: ${(okResult.confidence * 100).toFixed(1)}%`,
+              duration: 2000,
+            });
+            
+            setTimeout(() => setDetectedSign(null), 2000);
+          }
+        } else if (loveResult.detected && loveResult.confidence > 0.8 && canSendAlert("Amor")) {
+          const loveSign = await getSignByName("Amor");
+          if (loveSign) {
+            const detection: DetectionResult = {
+              sign: loveSign,
+              confidence: loveResult.confidence,
+              timestamp: new Date()
+            };
+            
+            setDetectedSign(detection);
+            toast.success("💖 AMOR detectado", {
+              description: `Confianza: ${(loveResult.confidence * 100).toFixed(1)}%`,
+              duration: 2000,
+            });
+            
+            setTimeout(() => setDetectedSign(null), 2000);
+          }
+        } else if (peaceResult.detected && peaceResult.confidence > 0.8 && canSendAlert("Paz")) {
+          const peaceSign = await getSignByName("Paz");
+          if (peaceSign) {
+            const detection: DetectionResult = {
+              sign: peaceSign,
+              confidence: peaceResult.confidence,
+              timestamp: new Date()
+            };
+            
+            setDetectedSign(detection);
+            toast.success("✌️ PAZ detectada", {
+              description: `Confianza: ${(peaceResult.confidence * 100).toFixed(1)}%`,
+              duration: 2000,
+            });
+            
+            setTimeout(() => setDetectedSign(null), 2000);
+          }
         }
       }
       
-      setTimeout(() => setIsDetecting(false), 50);
+      setTimeout(() => setIsDetecting(false), 100);
     } else {
-      // Reset cuando no hay manos detectadas
-      if (frameCountRef.current > 0) {
+      // Reset cuando no hay manos detectadas por un tiempo
+      if (frameCountRef.current > 10) {
         resetDetectionSystem();
       }
     }
-  }, [getSignByName, signs]);
+  }, [smoothLandmarks, detectOKSign, detectLoveSign, detectPeaceSign, canSendAlert, getSignByName, resetDetectionSystem]);
 
+  // Effect principal para inicializar MediaPipe
   useEffect(() => {
-    if (!videoElement) return;
+    if (!videoElement || isInitializedRef.current) return;
     
-    const hands = new Hands({
-      locateFile: (file) => {
-        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+    const initializeHands = async () => {
+      try {
+        const hands = new Hands({
+          locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+          }
+        });
+        
+        hands.setOptions({
+          maxNumHands: 2,
+          modelComplexity: 0, // Reducido para mejor rendimiento
+          minDetectionConfidence: 0.7,
+          minTrackingConfidence: 0.5
+        });
+        
+        hands.onResults(onResults);
+        handsRef.current = hands;
+        isInitializedRef.current = true;
+        
+        const processFrame = async () => {
+          if (videoElement && videoElement.readyState >= 2 && handsRef.current) {
+            try {
+              await handsRef.current.send({image: videoElement});
+            } catch (error) {
+              console.warn('Error procesando frame:', error);
+            }
+          }
+          if (isInitializedRef.current) {
+            requestAnimationFrame(processFrame);
+          }
+        };
+        
+        processFrame();
+      } catch (error) {
+        console.error('Error inicializando MediaPipe:', error);
       }
-    });
-    
-    hands.setOptions({
-      maxNumHands: 2,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.5
-    });
-    
-    hands.onResults(onResults);
-    handsRef.current = hands;
-    
-    const processFrame = async () => {
-      if (videoElement && videoElement.readyState >= 2) {
-        await hands.send({image: videoElement});
-      }
-      requestAnimationFrame(processFrame);
     };
     
-    processFrame();
+    initializeHands();
     
     return () => {
       if (handsRef.current) {
-        handsRef.current.close();
+        try {
+          handsRef.current.close();
+        } catch (error) {
+          console.warn('Error cerrando MediaPipe:', error);
+        }
+        handsRef.current = null;
       }
+      isInitializedRef.current = false;
       resetDetectionSystem();
     };
-  }, [videoElement, onResults]);
+  }, [videoElement, onResults, resetDetectionSystem]);
 
+  // Callback para establecer la referencia del canvas
   const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
     canvasRef.current = canvas;
   }, []);
