@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sign, DetectionResult } from '@/types/sign';
 import { useSigns } from '@/hooks/useSigns';
@@ -23,10 +22,10 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const isInitializedRef = useRef(false);
   const lastDetectionRef = useRef<number>(0);
   
-  // Constantes simplificadas
-  const DETECTION_COOLDOWN = 1500; // Reducido para más fluidez
+  // Constantes para detección
+  const DETECTION_COOLDOWN = 1000;
 
-  // Función simplificada para detectar "Fiebre Alta"
+  // Función mejorada para detectar "Fiebre Alta"
   const detectFeverSign = useCallback((landmarks: any[]) => {
     for (const hand of landmarks) {
       const thumb = hand[4];
@@ -34,18 +33,26 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       const middle = hand[12];
       const ring = hand[16];
       const pinky = hand[20];
+      const wrist = hand[0];
       
-      // Detección más simple y directa
+      // Detectar posición específica de fiebre
       const thumbIndexDistance = Math.sqrt(
         Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2)
       );
       
-      // Verificar que los dedos estén en posición vertical
-      const isVertical = middle.y < thumb.y && index.y < thumb.y;
-      const correctDistance = thumbIndexDistance > 0.03 && thumbIndexDistance < 0.15;
+      // Verificar que el pulgar e índice estén cerca (como en la imagen)
+      const thumbIndexClose = thumbIndexDistance < 0.08;
       
-      if (isVertical && correctDistance) {
-        return { detected: true, confidence: 0.9 };
+      // Verificar que los otros dedos estén extendidos
+      const middleExtended = middle.y < wrist.y - 0.05;
+      const ringExtended = ring.y < wrist.y - 0.05;
+      const pinkyExtended = pinky.y < wrist.y - 0.05;
+      
+      // Verificar orientación de la mano
+      const handUpright = wrist.y > thumb.y;
+      
+      if (thumbIndexClose && middleExtended && ringExtended && pinkyExtended && handUpright) {
+        return { detected: true, confidence: 0.95 };
       }
     }
     return { detected: false, confidence: 0 };
@@ -119,13 +126,13 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return { detected: false, confidence: 0 };
   }, []);
 
-  // Control de cooldown simplificado
+  // Control de cooldown
   const canDetect = useCallback(() => {
     const now = Date.now();
     return (now - lastDetectionRef.current) > DETECTION_COOLDOWN;
   }, []);
 
-  // Función principal de procesamiento - SIMPLIFICADA
+  // Función principal de procesamiento
   const onResults = useCallback(async (results: any) => {
     if (!canvasRef.current) return;
     
@@ -139,37 +146,51 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       setIsDetecting(true);
       
-      // Dibujar puntos de referencia de forma simple
+      // Dibujar puntos de referencia
       results.multiHandLandmarks.forEach((landmarks: any) => {
-        // Dibujar solo los puntos principales sin líneas complicadas
         landmarks.forEach((landmark: any, i: number) => {
           const x = landmark.x * canvas.width;
           const y = landmark.y * canvas.height;
           
-          // Punto rojo simple
+          // Puntos importantes más visibles
+          const isImportantPoint = [0, 4, 8, 12, 16, 20].includes(i);
+          
           ctx.beginPath();
-          ctx.arc(x, y, 3, 0, 2 * Math.PI);
-          ctx.fillStyle = '#FF0000';
+          ctx.arc(x, y, isImportantPoint ? 6 : 3, 0, 2 * Math.PI);
+          ctx.fillStyle = isImportantPoint ? '#FF0000' : '#00FF00';
           ctx.fill();
           
-          // Número del punto
-          if (i % 4 === 0) { // Solo mostrar algunos números para no saturar
+          // Números en puntos importantes
+          if (isImportantPoint) {
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = '8px Arial';
-            ctx.fillText(i.toString(), x + 5, y - 5);
+            ctx.font = '12px Arial';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.strokeText(i.toString(), x + 8, y - 8);
+            ctx.fillText(i.toString(), x + 8, y - 8);
           }
         });
+        
+        // Conectar puntos importantes
+        const importantPoints = [0, 4, 8, 12, 16, 20];
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < importantPoints.length - 1; i++) {
+          const point1 = landmarks[importantPoints[i]];
+          const point2 = landmarks[importantPoints[i + 1]];
+          
+          ctx.beginPath();
+          ctx.moveTo(point1.x * canvas.width, point1.y * canvas.height);
+          ctx.lineTo(point2.x * canvas.width, point2.y * canvas.height);
+          ctx.stroke();
+        }
       });
       
-      // Detectar señas de forma directa sin suavizado
+      // Detectar seña de fiebre
       if (canDetect()) {
         const feverResult = detectFeverSign(results.multiHandLandmarks);
-        const okResult = detectOKSign(results.multiHandLandmarks);
-        const loveResult = detectLoveSign(results.multiHandLandmarks);
-        const peaceResult = detectPeaceSign(results.multiHandLandmarks);
         
-        // Procesar detecciones con prioridad
-        if (feverResult.detected && feverResult.confidence > 0.8) {
+        if (feverResult.detected && feverResult.confidence > 0.9) {
           const feverSign = await getSignByName("Fiebre Alta");
           if (feverSign) {
             lastDetectionRef.current = Date.now();
@@ -180,73 +201,16 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
             };
             
             setDetectedSign(detection);
-            toast.success("🌡️ FIEBRE ALTA detectada", {
-              description: `Confianza: ${(feverResult.confidence * 100).toFixed(1)}%`,
-              duration: 1500,
-            });
+            console.log('🌡️ Seña de fiebre detectada:', detection);
             
-            setTimeout(() => setDetectedSign(null), 1500);
-          }
-        } else if (okResult.detected && okResult.confidence > 0.8) {
-          const okSign = await getSignByName("OK");
-          if (okSign) {
-            lastDetectionRef.current = Date.now();
-            const detection: DetectionResult = {
-              sign: okSign,
-              confidence: okResult.confidence,
-              timestamp: new Date()
-            };
-            
-            setDetectedSign(detection);
-            toast.success("👌 OK detectado", {
-              description: `Confianza: ${(okResult.confidence * 100).toFixed(1)}%`,
-              duration: 1500,
-            });
-            
-            setTimeout(() => setDetectedSign(null), 1500);
-          }
-        } else if (loveResult.detected && loveResult.confidence > 0.8) {
-          const loveSign = await getSignByName("Amor");
-          if (loveSign) {
-            lastDetectionRef.current = Date.now();
-            const detection: DetectionResult = {
-              sign: loveSign,
-              confidence: loveResult.confidence,
-              timestamp: new Date()
-            };
-            
-            setDetectedSign(detection);
-            toast.success("💖 AMOR detectado", {
-              description: `Confianza: ${(loveResult.confidence * 100).toFixed(1)}%`,
-              duration: 1500,
-            });
-            
-            setTimeout(() => setDetectedSign(null), 1500);
-          }
-        } else if (peaceResult.detected && peaceResult.confidence > 0.8) {
-          const peaceSign = await getSignByName("Paz");
-          if (peaceSign) {
-            lastDetectionRef.current = Date.now();
-            const detection: DetectionResult = {
-              sign: peaceSign,
-              confidence: peaceResult.confidence,
-              timestamp: new Date()
-            };
-            
-            setDetectedSign(detection);
-            toast.success("✌️ PAZ detectada", {
-              description: `Confianza: ${(peaceResult.confidence * 100).toFixed(1)}%`,
-              duration: 1500,
-            });
-            
-            setTimeout(() => setDetectedSign(null), 1500);
+            setTimeout(() => setDetectedSign(null), 2000);
           }
         }
       }
       
-      setTimeout(() => setIsDetecting(false), 50); // Más rápido
+      setTimeout(() => setIsDetecting(false), 100);
     }
-  }, [detectFeverSign, detectOKSign, detectLoveSign, detectPeaceSign, canDetect, getSignByName]);
+  }, [detectFeverSign, canDetect, getSignByName]);
 
   // Cargar MediaPipe de forma más directa
   const loadMediaPipe = useCallback(async () => {
@@ -276,16 +240,31 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     }
   }, []);
 
-  // Inicialización simplificada
+  // Inicialización
   useEffect(() => {
     if (!videoElement || isInitializedRef.current) return;
     
     const initializeHands = async () => {
       try {
-        const loaded = await loadMediaPipe();
-        if (!loaded) return;
-        
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Cargar MediaPipe
+        const scripts = [
+          'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js',
+          'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js'
+        ];
+
+        for (const src of scripts) {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`Failed to load ${src}`));
+            document.head.appendChild(script);
+          });
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         if (!window.Hands) {
           console.error('MediaPipe Hands no disponible');
@@ -300,24 +279,24 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         
         hands.setOptions({
           maxNumHands: 2,
-          modelComplexity: 0, // Reducido para mejor rendimiento
-          minDetectionConfidence: 0.6, // Reducido para más sensibilidad
-          minTrackingConfidence: 0.4 // Reducido para mejor tracking
+          modelComplexity: 1,
+          minDetectionConfidence: 0.7,
+          minTrackingConfidence: 0.5
         });
         
         hands.onResults(onResults);
         handsRef.current = hands;
         isInitializedRef.current = true;
         
-        console.log('✅ MediaPipe inicializado - modo fluido');
+        console.log('✅ MediaPipe inicializado para detección de fiebre');
         
-        // Loop de procesamiento más simple
+        // Loop de procesamiento
         const processFrame = async () => {
           if (videoElement && videoElement.readyState >= 2 && handsRef.current && isInitializedRef.current) {
             try {
               await handsRef.current.send({image: videoElement});
             } catch (error) {
-              console.warn('Error frame:', error);
+              console.warn('Error procesando frame:', error);
             }
           }
           if (isInitializedRef.current) {
@@ -327,8 +306,8 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         
         processFrame();
       } catch (error) {
-        console.error('❌ Error inicialización:', error);
-        toast.error('Error iniciando detección');
+        console.error('❌ Error inicialización MediaPipe:', error);
+        toast.error('Error iniciando detección de fiebre');
       }
     };
     
@@ -339,13 +318,13 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         try {
           handsRef.current.close();
         } catch (error) {
-          console.warn('Error cerrando:', error);
+          console.warn('Error cerrando MediaPipe:', error);
         }
         handsRef.current = null;
       }
       isInitializedRef.current = false;
     };
-  }, [videoElement, onResults, loadMediaPipe]);
+  }, [videoElement, onResults]);
 
   const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
     canvasRef.current = canvas;
