@@ -4,14 +4,11 @@ import { CameraView } from '@/components/CameraView';
 import { DetectionAlert } from '@/components/DetectionAlert';
 import { SignsDatabase } from '@/components/SignsDatabase';
 import { Statistics } from '@/components/Statistics';
-import { useSignDetection } from '@/hooks/useSignDetection';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Hand, Camera, Database, BarChart3 } from 'lucide-react';
 
 const Index = () => {
-  const { detectedSign, isDetecting } = useSignDetection();
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="container mx-auto px-4 py-8">
@@ -24,8 +21,8 @@ const Index = () => {
             </h1>
           </div>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Sistema inteligente de reconocimiento de lenguaje de señas en tiempo real.
-            Detección automática de señas de <strong>Amor</strong> y <strong>Paz</strong>.
+            Sistema inteligente de reconocimiento de lenguaje de señas en tiempo real con MediaPipe.
+            Detección automática con puntos en las manos de <strong>Amor</strong> y <strong>Paz</strong>.
           </p>
         </div>
 
@@ -57,13 +54,12 @@ const Index = () => {
           <TabsContent value="detection" className="space-y-6">
             <Card className="p-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-6">Estado de Detección</h2>
-              <DetectionAlert detection={detectedSign} isDetecting={isDetecting} />
               
               <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                <h3 className="font-semibold text-green-800 mb-2">🟢 Sistema Siempre Activo</h3>
+                <h3 className="font-semibold text-green-800 mb-2">🟢 Sistema MediaPipe Activo</h3>
                 <p className="text-green-600 text-sm">
-                  El sistema está analizando continuamente los gestos de la cámara.
-                  Detecta automáticamente las señas de <strong>Amor</strong> y <strong>Paz</strong> 
+                  El sistema está analizando continuamente los puntos de las manos con MediaPipe.
+                  Detecta automáticamente las señas de <strong>Amor</strong> (corazón con manos) y <strong>Paz</strong> (V con dedos)
                   y envía alertas de texto cuando las reconoce.
                 </p>
               </div>
@@ -81,22 +77,22 @@ const Index = () => {
                 <h3 className="text-xl font-bold text-gray-800 mb-4">Información del Sistema</h3>
                 <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
-                    <h4 className="font-semibold text-gray-800 mb-2">Señas Principales:</h4>
+                    <h4 className="font-semibold text-gray-800 mb-2">Señas Detectadas:</h4>
                     <ul className="space-y-1">
-                      <li>• 💖 Amor - Reconocimiento automático</li>
-                      <li>• ✌️ Paz - Reconocimiento automático</li>
+                      <li>• 💖 Amor - Corazón con ambas manos</li>
+                      <li>• ✌️ Paz - V con dedos índice y medio</li>
                       <li>• Hola - Saludo básico</li>
                       <li>• Gracias - Agradecimiento</li>
                       <li>• Adiós - Despedida</li>
                     </ul>
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-800 mb-2">Características:</h4>
+                    <h4 className="font-semibold text-gray-800 mb-2">Tecnología:</h4>
                     <ul className="space-y-1">
-                      <li>• Detección automática continua</li>
+                      <li>• MediaPipe Hands - Detección de puntos</li>
+                      <li>• Reconocimiento en tiempo real</li>
                       <li>• Alertas de texto personalizadas</li>
-                      <li>• Base de datos extensible</li>
-                      <li>• Interfaz responsive</li>
+                      <li>• Canvas overlay para visualización</li>
                     </ul>
                   </div>
                 </div>

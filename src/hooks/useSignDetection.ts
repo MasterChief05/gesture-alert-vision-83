@@ -1,84 +1,163 @@
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sign, DetectionResult } from '@/types/sign';
 import { signsDatabase } from '@/data/signsDatabase';
 import { toast } from 'sonner';
+import { Hands, Results } from '@mediapipe/hands';
+import { drawConnectors, drawLandmarks } from '@mediapipe/drawing_utils';
 
-export const useSignDetection = () => {
+export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const [detectedSign, setDetectedSign] = useState<DetectionResult | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
+  const handsRef = useRef<Hands | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Simulación de detección de señas - siempre activa
-  const simulateDetection = useCallback(() => {
-    setIsDetecting(true);
+  // Función para detectar seña de amor (corazón con las manos)
+  const detectLoveSign = (landmarks: any[]) => {
+    if (landmarks.length < 2) return false;
     
-    // Simular proceso de detección con delay aleatorio
-    const detectionDelay = Math.random() * 4000 + 2000; // 2-6 segundos
+    const leftHand = landmarks[0];
+    const rightHand = landmarks[1];
     
-    setTimeout(() => {
-      // Probabilidad del 40% de detectar una seña
-      if (Math.random() > 0.6) {
-        // Priorizar detección de "Amor" y "Paz"
-        let randomSign;
-        const specialSigns = signsDatabase.filter(sign => 
-          sign.name === "Amor" || sign.name === "Paz"
-        );
-        
-        if (Math.random() > 0.5 && specialSigns.length > 0) {
-          // 50% probabilidad de detectar amor o paz
-          randomSign = specialSigns[Math.floor(Math.random() * specialSigns.length)];
-        } else {
-          randomSign = signsDatabase[Math.floor(Math.random() * signsDatabase.length)];
-        }
-        
-        const confidence = Math.random() * 0.3 + 0.7; // 70-100% confianza
-        
-        const detection: DetectionResult = {
-          sign: randomSign,
-          confidence,
-          timestamp: new Date()
-        };
-        
-        setDetectedSign(detection);
-        
-        // Mostrar alerta de texto específica para amor y paz
-        if (randomSign.name === "Amor") {
+    // Verificar si las manos están formando un corazón
+    // Puntos de referencia para dedos índice y pulgar
+    const leftThumb = leftHand[4];
+    const leftIndex = leftHand[8];
+    const rightThumb = rightHand[4];
+    const rightIndex = rightHand[8];
+    
+    // Calcular distancias para determinar si forman corazón
+    const thumbDistance = Math.abs(leftThumb.x - rightThumb.x);
+    const indexDistance = Math.abs(leftIndex.x - rightIndex.x);
+    
+    return thumbDistance < 0.1 && indexDistance < 0.15;
+  };
+
+  // Función para detectar seña de paz (V con dos dedos)
+  const detectPeaceSign = (landmarks: any[]) => {
+    for (const hand of landmarks) {
+      // Puntos de referencia: índice (8), medio (12), anular (16), meñique (20)
+      const indexTip = hand[8];
+      const middleTip = hand[12];
+      const ringTip = hand[16];
+      const pinkyTip = hand[20];
+      const indexMcp = hand[5];
+      
+      // Verificar si índice y medio están extendidos
+      const indexExtended = indexTip.y < indexMcp.y;
+      const middleExtended = middleTip.y < indexMcp.y;
+      const ringFolded = ringTip.y > indexMcp.y;
+      const pinkyFolded = pinkyTip.y > indexMcp.y;
+      
+      if (indexExtended && middleExtended && ringFolded && pinkyFolded) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const onResults = useCallback((results: Results) => {
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    
+    // Limpiar canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+      setIsDetecting(true);
+      
+      // Dibujar landmarks
+      for (const landmarks of results.multiHandLandmarks) {
+        drawConnectors(ctx, landmarks, Hands.HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+        drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1});
+      }
+      
+      // Detectar señas
+      if (detectLoveSign(results.multiHandLandmarks)) {
+        const loveSign = signsDatabase.find(sign => sign.name === "Amor");
+        if (loveSign) {
+          const detection: DetectionResult = {
+            sign: loveSign,
+            confidence: 0.95,
+            timestamp: new Date()
+          };
+          
+          setDetectedSign(detection);
           toast.success("💖 AMOR detectado", {
             description: "Se ha reconocido la seña de amor",
             duration: 4000,
           });
-        } else if (randomSign.name === "Paz") {
+          
+          setTimeout(() => setDetectedSign(null), 4000);
+        }
+      } else if (detectPeaceSign(results.multiHandLandmarks)) {
+        const peaceSign = signsDatabase.find(sign => sign.name === "Paz");
+        if (peaceSign) {
+          const detection: DetectionResult = {
+            sign: peaceSign,
+            confidence: 0.92,
+            timestamp: new Date()
+          };
+          
+          setDetectedSign(detection);
           toast.success("✌️ PAZ detectada", {
             description: "Se ha reconocido la seña de paz",
             duration: 4000,
           });
-        } else {
-          toast.success(`Seña detectada: ${randomSign.name}`, {
-            description: `Confianza: ${(confidence * 100).toFixed(1)}%`,
-            duration: 3000,
-          });
+          
+          setTimeout(() => setDetectedSign(null), 4000);
         }
-        
-        // Limpiar detección después de 4 segundos
-        setTimeout(() => {
-          setDetectedSign(null);
-        }, 4000);
       }
       
-      setIsDetecting(false);
-      
-      // Continuar el ciclo de detección automáticamente
-      setTimeout(simulateDetection, 1500);
-    }, detectionDelay);
+      setTimeout(() => setIsDetecting(false), 100);
+    }
   }, []);
 
   useEffect(() => {
-    // Iniciar detección automáticamente
-    simulateDetection();
-  }, [simulateDetection]);
+    if (!videoElement) return;
+    
+    const hands = new Hands({
+      locateFile: (file) => {
+        return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+      }
+    });
+    
+    hands.setOptions({
+      maxNumHands: 2,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+    
+    hands.onResults(onResults);
+    handsRef.current = hands;
+    
+    const processFrame = async () => {
+      if (videoElement && videoElement.readyState >= 2) {
+        await hands.send({image: videoElement});
+      }
+      requestAnimationFrame(processFrame);
+    };
+    
+    processFrame();
+    
+    return () => {
+      if (handsRef.current) {
+        handsRef.current.close();
+      }
+    };
+  }, [videoElement, onResults]);
+
+  const setCanvasRef = useCallback((canvas: HTMLCanvasElement | null) => {
+    canvasRef.current = canvas;
+  }, []);
 
   return {
     detectedSign,
-    isDetecting
+    isDetecting,
+    setCanvasRef
   };
 };
