@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sign, DetectionResult } from '@/types/sign';
 import { signsDatabase } from '@/data/signsDatabase';
@@ -11,6 +10,10 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const [isDetecting, setIsDetecting] = useState(false);
   const handsRef = useRef<Hands | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  
+  // Sistema de cooldown para evitar mensajes infinitos
+  const lastDetectionRef = useRef<{ sign: string; timestamp: number } | null>(null);
+  const DETECTION_COOLDOWN = 3000; // 3 segundos entre detecciones de la misma seña
 
   // Función para detectar seña de amor (corazón con las manos)
   const detectLoveSign = (landmarks: any[]) => {
@@ -56,6 +59,18 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return false;
   };
 
+  // Función para verificar si puede enviar alerta (cooldown)
+  const canSendAlert = (signName: string) => {
+    const now = Date.now();
+    if (!lastDetectionRef.current || 
+        lastDetectionRef.current.sign !== signName || 
+        (now - lastDetectionRef.current.timestamp) > DETECTION_COOLDOWN) {
+      lastDetectionRef.current = { sign: signName, timestamp: now };
+      return true;
+    }
+    return false;
+  };
+
   const onResults = useCallback((results: Results) => {
     if (!canvasRef.current) return;
     
@@ -75,8 +90,8 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1});
       }
       
-      // Detectar señas
-      if (detectLoveSign(results.multiHandLandmarks)) {
+      // Detectar señas con cooldown
+      if (detectLoveSign(results.multiHandLandmarks) && canSendAlert("Amor")) {
         const loveSign = signsDatabase.find(sign => sign.name === "Amor");
         if (loveSign) {
           const detection: DetectionResult = {
@@ -93,7 +108,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           
           setTimeout(() => setDetectedSign(null), 4000);
         }
-      } else if (detectPeaceSign(results.multiHandLandmarks)) {
+      } else if (detectPeaceSign(results.multiHandLandmarks) && canSendAlert("Paz")) {
         const peaceSign = signsDatabase.find(sign => sign.name === "Paz");
         if (peaceSign) {
           const detection: DetectionResult = {
