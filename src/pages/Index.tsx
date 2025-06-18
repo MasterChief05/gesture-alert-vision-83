@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React from 'react';
 import { CameraView } from '@/components/CameraView';
 import { DetectionAlert } from '@/components/DetectionAlert';
 import { SignsDatabase } from '@/components/SignsDatabase';
@@ -10,12 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Hand, Camera, Database, BarChart3 } from 'lucide-react';
 
 const Index = () => {
-  const [isDetectionActive, setIsDetectionActive] = useState(false);
-  const { detectedSign, isDetecting } = useSignDetection(isDetectionActive);
-
-  const handleToggleDetection = () => {
-    setIsDetectionActive(!isDetectionActive);
-  };
+  const { detectedSign, isDetecting } = useSignDetection();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
@@ -29,8 +24,8 @@ const Index = () => {
             </h1>
           </div>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Sistema inteligente de reconocimiento de lenguaje de señas en tiempo real
-            utilizando visión por computadora y machine learning.
+            Sistema inteligente de reconocimiento de lenguaje de señas en tiempo real.
+            Detección automática de señas de <strong>Amor</strong> y <strong>Paz</strong>.
           </p>
         </div>
 
@@ -56,10 +51,7 @@ const Index = () => {
           </TabsList>
 
           <TabsContent value="camera" className="space-y-6">
-            <CameraView
-              isDetectionActive={isDetectionActive}
-              onToggleDetection={handleToggleDetection}
-            />
+            <CameraView />
           </TabsContent>
 
           <TabsContent value="detection" className="space-y-6">
@@ -67,15 +59,14 @@ const Index = () => {
               <h2 className="text-2xl font-bold text-gray-800 mb-6">Estado de Detección</h2>
               <DetectionAlert detection={detectedSign} isDetecting={isDetecting} />
               
-              {isDetectionActive && (
-                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <h3 className="font-semibold text-blue-800 mb-2">Sistema Activo</h3>
-                  <p className="text-blue-600 text-sm">
-                    El sistema está analizando continuamente los gestos de la cámara.
-                    Cuando detecte una seña conocida, aparecerá una alerta automáticamente.
-                  </p>
-                </div>
-              )}
+              <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <h3 className="font-semibold text-green-800 mb-2">🟢 Sistema Siempre Activo</h3>
+                <p className="text-green-600 text-sm">
+                  El sistema está analizando continuamente los gestos de la cámara.
+                  Detecta automáticamente las señas de <strong>Amor</strong> y <strong>Paz</strong> 
+                  y envía alertas de texto cuando las reconoce.
+                </p>
+              </div>
             </Card>
           </TabsContent>
 
@@ -90,20 +81,21 @@ const Index = () => {
                 <h3 className="text-xl font-bold text-gray-800 mb-4">Información del Sistema</h3>
                 <div className="grid md:grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
-                    <h4 className="font-semibold text-gray-800 mb-2">Tecnologías Utilizadas:</h4>
+                    <h4 className="font-semibold text-gray-800 mb-2">Señas Principales:</h4>
                     <ul className="space-y-1">
-                      <li>• MediaPipe para detección de manos</li>
-                      <li>• Machine Learning para clasificación</li>
-                      <li>• WebRTC para captura de video</li>
-                      <li>• React + TypeScript</li>
+                      <li>• 💖 Amor - Reconocimiento automático</li>
+                      <li>• ✌️ Paz - Reconocimiento automático</li>
+                      <li>• Hola - Saludo básico</li>
+                      <li>• Gracias - Agradecimiento</li>
+                      <li>• Adiós - Despedida</li>
                     </ul>
                   </div>
                   <div>
                     <h4 className="font-semibold text-gray-800 mb-2">Características:</h4>
                     <ul className="space-y-1">
-                      <li>• Detección en tiempo real</li>
+                      <li>• Detección automática continua</li>
+                      <li>• Alertas de texto personalizadas</li>
                       <li>• Base de datos extensible</li>
-                      <li>• Alertas automáticas</li>
                       <li>• Interfaz responsive</li>
                     </ul>
                   </div>

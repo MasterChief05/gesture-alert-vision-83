@@ -1,19 +1,11 @@
 
 import React from 'react';
 import { useCamera } from '@/hooks/useCamera';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Camera, CameraOff, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-interface CameraViewProps {
-  isDetectionActive: boolean;
-  onToggleDetection: () => void;
-}
-
-export const CameraView: React.FC<CameraViewProps> = ({
-  isDetectionActive,
-  onToggleDetection
-}) => {
+export const CameraView: React.FC = () => {
   const { videoRef, isStreaming, error, startCamera, stopCamera } = useCamera();
 
   const handleToggleCamera = () => {
@@ -49,10 +41,10 @@ export const CameraView: React.FC<CameraViewProps> = ({
             )}
           </div>
           
-          {isStreaming && isDetectionActive && (
+          {isStreaming && (
             <div className="absolute top-2 right-2">
-              <div className="bg-red-500 text-white px-2 py-1 rounded-full text-xs font-semibold animate-pulse">
-                DETECTANDO
+              <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
+                🟢 DETECTANDO AMOR Y PAZ
               </div>
             </div>
           )}
@@ -67,16 +59,15 @@ export const CameraView: React.FC<CameraViewProps> = ({
             {isStreaming ? <CameraOff className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
             <span>{isStreaming ? 'Detener Cámara' : 'Iniciar Cámara'}</span>
           </Button>
-
-          <Button
-            onClick={onToggleDetection}
-            disabled={!isStreaming}
-            variant={isDetectionActive ? "secondary" : "default"}
-            className="px-6 py-2"
-          >
-            {isDetectionActive ? 'Pausar Detección' : 'Iniciar Detección'}
-          </Button>
         </div>
+
+        {isStreaming && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
+            <p className="text-blue-700 text-sm font-medium">
+              💖 Sistema detectando automáticamente señas de AMOR y PAZ ✌️
+            </p>
+          </div>
+        )}
       </div>
     </Card>
   );
