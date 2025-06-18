@@ -35,7 +35,8 @@ export const useSigns = () => {
         description: signData.description,
         videoUrl: imageUrl,
         confidence: 1.0,
-        landmarks: []
+        landmarks: [],
+        createdAt: new Date()
       });
 
       setSigns(prev => [...prev, newSign]);
