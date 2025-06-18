@@ -13,14 +13,30 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const handsRef = useRef<Hands | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   
-  // Sistema de cooldown mejorado con seguimiento de landmarks
-  const lastDetectionRef = useRef<{ sign: string; timestamp: number; landmarks: number[][] } | null>(null);
-  const DETECTION_COOLDOWN = 2000; // 2 segundos entre detecciones
-  const landmarksHistoryRef = useRef<number[][][]>([]); // Historial de landmarks para suavizado
-  const HISTORY_SIZE = 5; // Tamaño del historial para suavizado
+  // Sistema mejorado para evitar landmarks pillados
+  const lastDetectionRef = useRef<{ sign: string; timestamp: number; frameCount: number } | null>(null);
+  const DETECTION_COOLDOWN = 1500; // Reducido para mejor respuesta
+  const landmarksHistoryRef = useRef<number[][][]>([]); // Historial más pequeño
+  const HISTORY_SIZE = 3; // Reducido para menos lag
+  const frameCountRef = useRef(0);
+  
+  // Reset automático para evitar landmarks pillados
+  const resetDetectionSystem = () => {
+    landmarksHistoryRef.current = [];
+    frameCountRef.current = 0;
+    lastDetectionRef.current = null;
+    console.log('🔄 Sistema de detección reiniciado');
+  };
 
-  // Función para suavizar landmarks usando promedio móvil
+  // Función para suavizar landmarks con reset automático
   const smoothLandmarks = (currentLandmarks: any[]) => {
+    frameCountRef.current++;
+    
+    // Reset cada 180 frames (6 segundos a 30fps) para evitar acumulación
+    if (frameCountRef.current > 180) {
+      resetDetectionSystem();
+    }
+    
     if (landmarksHistoryRef.current.length >= HISTORY_SIZE) {
       landmarksHistoryRef.current.shift();
     }
@@ -31,11 +47,12 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     
     landmarksHistoryRef.current.push(normalizedLandmarks);
     
-    // Calcular promedio móvil
+    // Suavizado más ligero para mejor respuesta
     if (landmarksHistoryRef.current.length > 1) {
       const smoothed = normalizedLandmarks.map((hand, handIndex) => 
         hand.map((point, pointIndex) => {
-          const sum = landmarksHistoryRef.current.reduce((acc, frame) => {
+          const recent = landmarksHistoryRef.current.slice(-2); // Solo últimos 2 frames
+          const sum = recent.reduce((acc, frame) => {
             if (frame[handIndex] && frame[handIndex][pointIndex]) {
               return [
                 acc[0] + frame[handIndex][pointIndex][0],
@@ -46,7 +63,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
             return acc;
           }, [0, 0, 0]);
           
-          const count = landmarksHistoryRef.current.length;
+          const count = recent.length;
           return [sum[0] / count, sum[1] / count, sum[2] / count];
         })
       );
@@ -56,14 +73,46 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return normalizedLandmarks;
   };
 
-  // Función mejorada para detectar seña de amor con landmarks dinámicos
+  // Nueva función para detectar seña "OK"
+  const detectOKSign = (landmarks: any[]) => {
+    for (const hand of landmarks) {
+      const thumb = hand[4];      // Punta del pulgar
+      const index = hand[8];      // Punta del índice
+      const middle = hand[12];    // Punta del medio
+      const ring = hand[16];      // Punta del anular
+      const pinky = hand[20];     // Punta del meñique
+      const thumbBase = hand[3];  // Base del pulgar
+      const indexBase = hand[5];  // Base del índice
+      
+      // Distancia entre pulgar e índice (deben estar cerca para formar círculo)
+      const thumbIndexDistance = Math.sqrt(
+        Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2)
+      );
+      
+      // Verificar que otros dedos estén extendidos
+      const middleExtended = (indexBase.y - middle.y) > 0.04;
+      const ringExtended = (indexBase.y - ring.y) > 0.04;
+      const pinkyExtended = (indexBase.y - pinky.y) > 0.04;
+      
+      // Verificar que el círculo sea del tamaño correcto
+      const isCircleSize = thumbIndexDistance > 0.02 && thumbIndexDistance < 0.08;
+      
+      if (isCircleSize && middleExtended && ringExtended && pinkyExtended) {
+        const confidence = Math.max(0.85, 1.0 - thumbIndexDistance * 8);
+        console.log(`👌 OK detectado - Distancia: ${thumbIndexDistance}, Confianza: ${confidence}`);
+        return { detected: true, confidence };
+      }
+    }
+    return { detected: false, confidence: 0 };
+  };
+
+  // Función mejorada para detectar seña de amor
   const detectLoveSign = (landmarks: any[]) => {
     if (landmarks.length < 2) return { detected: false, confidence: 0 };
     
     const leftHand = landmarks[0];
     const rightHand = landmarks[1];
     
-    // Puntos clave para formar corazón
     const leftThumb = leftHand[4];
     const leftIndex = leftHand[8];
     const rightThumb = rightHand[4];
@@ -71,15 +120,11 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     const leftWrist = leftHand[0];
     const rightWrist = rightHand[0];
     
-    // Calcular distancias y ángulos
     const thumbDistance = Math.abs(leftThumb.x - rightThumb.x);
     const indexDistance = Math.abs(leftIndex.x - rightIndex.x);
     const wristDistance = Math.abs(leftWrist.x - rightWrist.x);
-    
-    // Verificar altura relativa de las manos
     const handsHeight = Math.abs(leftWrist.y - rightWrist.y);
     
-    // Condiciones más específicas para detectar corazón
     const isHeartShape = thumbDistance < 0.08 && 
                         indexDistance < 0.12 && 
                         wristDistance > 0.15 && 
@@ -93,7 +138,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return { detected: isHeartShape, confidence };
   };
 
-  // Función mejorada para detectar seña de paz con landmarks dinámicos
+  // Función mejorada para detectar seña de paz
   const detectPeaceSign = (landmarks: any[]) => {
     for (const hand of landmarks) {
       const indexTip = hand[8];
@@ -105,13 +150,10 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       const ringMcp = hand[13];
       const pinkyMcp = hand[17];
       
-      // Verificar extensión de dedos con más precisión
       const indexExtended = (indexMcp.y - indexTip.y) > 0.05;
       const middleExtended = (middleMcp.y - middleTip.y) > 0.05;
       const ringFolded = (ringTip.y - ringMcp.y) > -0.02;
       const pinkyFolded = (pinkyTip.y - pinkyMcp.y) > -0.02;
-      
-      // Verificar separación entre índice y medio
       const fingerSeparation = Math.abs(indexTip.x - middleTip.x);
       
       if (indexExtended && middleExtended && ringFolded && pinkyFolded && fingerSeparation > 0.03) {
@@ -122,12 +164,12 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return { detected: false, confidence: 0 };
   };
 
-  // Función para comparar landmarks con señas almacenadas
+  // Función para comparar con señas almacenadas (mejorada)
   const compareWithStoredSigns = async (currentLandmarks: number[][]) => {
     for (const sign of signs) {
       if (sign.landmarks && sign.landmarks.length > 0) {
         const similarity = calculateLandmarkSimilarity(currentLandmarks, sign.landmarks);
-        if (similarity > 0.75) { // Umbral de similitud
+        if (similarity > 0.70) { // Umbral más permisivo
           return { sign, confidence: similarity };
         }
       }
@@ -135,7 +177,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return null;
   };
 
-  // Función para calcular similitud entre landmarks
+  // Función mejorada para calcular similitud
   const calculateLandmarkSimilarity = (landmarks1: number[][], landmarks2: number[][]) => {
     if (!landmarks1 || !landmarks2 || landmarks1.length === 0 || landmarks2.length === 0) {
       return 0;
@@ -143,7 +185,6 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
 
     let totalDistance = 0;
     let pointCount = 0;
-
     const minLength = Math.min(landmarks1.length, landmarks2.length);
     
     for (let i = 0; i < minLength; i++) {
@@ -159,13 +200,13 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     if (pointCount === 0) return 0;
     
     const avgDistance = totalDistance / pointCount;
-    const similarity = Math.max(0, 1 - (avgDistance * 5)); // Normalizar a 0-1
+    const similarity = Math.max(0, 1 - (avgDistance * 4)); // Más tolerante
     
     return similarity;
   };
 
-  // Verificar si puede enviar alerta con landmarks dinámicos
-  const canSendAlert = (signName: string, currentLandmarks: number[][]) => {
+  // Sistema mejorado de cooldown con reset automático
+  const canSendAlert = (signName: string) => {
     const now = Date.now();
     if (!lastDetectionRef.current || 
         lastDetectionRef.current.sign !== signName || 
@@ -173,8 +214,8 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       
       lastDetectionRef.current = { 
         sign: signName, 
-        timestamp: now, 
-        landmarks: currentLandmarks 
+        timestamp: now,
+        frameCount: frameCountRef.current
       };
       return true;
     }
@@ -188,30 +229,47 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     
-    // Limpiar canvas con animación suave
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
       setIsDetecting(true);
       
-      // Suavizar landmarks
+      // Suavizar landmarks con sistema mejorado
       const smoothedLandmarks = smoothLandmarks(results.multiHandLandmarks);
       
       // Dibujar landmarks con colores dinámicos
       results.multiHandLandmarks.forEach((landmarks, index) => {
         const color = index === 0 ? '#00FF00' : '#0099FF';
-        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color, lineWidth: 3});
-        drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 2, radius: 4});
+        drawConnectors(ctx, landmarks, HAND_CONNECTIONS, {color, lineWidth: 2});
+        drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
       });
       
-      // Detectar señas predefinidas con landmarks suavizados
+      // Detectar señas predefinidas
       const loveResult = detectLoveSign(results.multiHandLandmarks);
       const peaceResult = detectPeaceSign(results.multiHandLandmarks);
+      const okResult = detectOKSign(results.multiHandLandmarks);
       
-      // Preparar landmarks para comparación
       const flatLandmarks = smoothedLandmarks.flat();
       
-      if (loveResult.detected && loveResult.confidence > 0.8 && canSendAlert("Amor", flatLandmarks)) {
+      // Verificar señas con mejor prioridad
+      if (okResult.detected && okResult.confidence > 0.85 && canSendAlert("OK")) {
+        const okSign = await getSignByName("OK");
+        if (okSign) {
+          const detection: DetectionResult = {
+            sign: okSign,
+            confidence: okResult.confidence,
+            timestamp: new Date()
+          };
+          
+          setDetectedSign(detection);
+          toast.success("👌 OK detectado", {
+            description: `Confianza: ${(okResult.confidence * 100).toFixed(1)}%`,
+            duration: 2500,
+          });
+          
+          setTimeout(() => setDetectedSign(null), 2500);
+        }
+      } else if (loveResult.detected && loveResult.confidence > 0.8 && canSendAlert("Amor")) {
         const loveSign = await getSignByName("Amor");
         if (loveSign) {
           const detection: DetectionResult = {
@@ -222,13 +280,13 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           
           setDetectedSign(detection);
           toast.success("💖 AMOR detectado", {
-            description: `Confianza: ${(loveResult.confidence * 100).toFixed(1)}% - Landmarks dinámicos`,
-            duration: 3000,
+            description: `Confianza: ${(loveResult.confidence * 100).toFixed(1)}%`,
+            duration: 2500,
           });
           
-          setTimeout(() => setDetectedSign(null), 3000);
+          setTimeout(() => setDetectedSign(null), 2500);
         }
-      } else if (peaceResult.detected && peaceResult.confidence > 0.8 && canSendAlert("Paz", flatLandmarks)) {
+      } else if (peaceResult.detected && peaceResult.confidence > 0.8 && canSendAlert("Paz")) {
         const peaceSign = await getSignByName("Paz");
         if (peaceSign) {
           const detection: DetectionResult = {
@@ -239,16 +297,16 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           
           setDetectedSign(detection);
           toast.success("✌️ PAZ detectada", {
-            description: `Confianza: ${(peaceResult.confidence * 100).toFixed(1)}% - Landmarks dinámicos`,
-            duration: 3000,
+            description: `Confianza: ${(peaceResult.confidence * 100).toFixed(1)}%`,
+            duration: 2500,
           });
           
-          setTimeout(() => setDetectedSign(null), 3000);
+          setTimeout(() => setDetectedSign(null), 2500);
         }
       } else {
-        // Comparar con señas almacenadas en la base de datos
+        // Comparar con señas almacenadas
         const storedMatch = await compareWithStoredSigns(flatLandmarks);
-        if (storedMatch && canSendAlert(storedMatch.sign.name, flatLandmarks)) {
+        if (storedMatch && canSendAlert(storedMatch.sign.name)) {
           const detection: DetectionResult = {
             sign: storedMatch.sign,
             confidence: storedMatch.confidence,
@@ -257,18 +315,20 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           
           setDetectedSign(detection);
           toast.success(`🖐️ ${storedMatch.sign.name.toUpperCase()} detectada`, {
-            description: `Confianza: ${(storedMatch.confidence * 100).toFixed(1)}% - Seña personalizada`,
-            duration: 3000,
+            description: `Confianza: ${(storedMatch.confidence * 100).toFixed(1)}%`,
+            duration: 2500,
           });
           
-          setTimeout(() => setDetectedSign(null), 3000);
+          setTimeout(() => setDetectedSign(null), 2500);
         }
       }
       
-      setTimeout(() => setIsDetecting(false), 100);
+      setTimeout(() => setIsDetecting(false), 50);
     } else {
-      // Limpiar historial cuando no hay manos detectadas
-      landmarksHistoryRef.current = [];
+      // Reset cuando no hay manos detectadas
+      if (frameCountRef.current > 0) {
+        resetDetectionSystem();
+      }
     }
   }, [getSignByName, signs]);
 
@@ -304,6 +364,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       if (handsRef.current) {
         handsRef.current.close();
       }
+      resetDetectionSystem();
     };
   }, [videoElement, onResults]);
 

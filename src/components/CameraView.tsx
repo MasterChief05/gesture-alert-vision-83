@@ -20,6 +20,15 @@ export const CameraView: React.FC = () => {
     }
   };
 
+  const getSignEmoji = (signName: string) => {
+    switch (signName) {
+      case "Amor": return "💖 AMOR";
+      case "Paz": return "✌️ PAZ";
+      case "OK": return "👌 OK";
+      default: return `🖐️ ${signName.toUpperCase()}`;
+    }
+  };
+
   return (
     <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="flex flex-col items-center space-y-4">
@@ -56,7 +65,7 @@ export const CameraView: React.FC = () => {
           {isStreaming && (
             <div className="absolute top-2 right-2">
               <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
-                🟢 DETECTANDO AMOR Y PAZ
+                🟢 DETECTANDO SEÑAS
               </div>
             </div>
           )}
@@ -64,7 +73,7 @@ export const CameraView: React.FC = () => {
           {detectedSign && (
             <div className="absolute bottom-2 left-2 right-2">
               <div className="bg-green-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-bounce">
-                {detectedSign.sign.name === "Amor" ? "💖 AMOR" : "✌️ PAZ"}
+                {getSignEmoji(detectedSign.sign.name)}
               </div>
             </div>
           )}
@@ -84,7 +93,7 @@ export const CameraView: React.FC = () => {
         {isStreaming && (
           <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
             <p className="text-blue-700 text-sm font-medium">
-              💖 Sistema detectando automáticamente señas de AMOR y PAZ con puntos en las manos ✌️
+              💖 Sistema detectando automáticamente: AMOR, PAZ y OK 👌 con puntos mejorados
             </p>
           </div>
         )}
