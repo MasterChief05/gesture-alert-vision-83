@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Sign, DetectionResult } from '@/types/sign';
 import { useSigns } from '@/hooks/useSigns';
@@ -158,6 +157,47 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     return { detected: false, confidence: 0 };
   }, []);
 
+  // Nueva función para detectar seña de "Fiebre Alta"
+  const detectFeverSign = useCallback((landmarks: any[]) => {
+    for (const hand of landmarks) {
+      // Puntos clave para la seña de fiebre alta
+      const thumb = hand[4];
+      const index = hand[8];
+      const middle = hand[12];
+      const ring = hand[16];
+      const pinky = hand[20];
+      const wrist = hand[0];
+      const palmBase = hand[5];
+      
+      // Detectar si la mano está en posición vertical con dedos específicos
+      const isVerticalPosition = Math.abs(wrist.x - middle.x) < 0.1;
+      const thumbPosition = thumb.y < index.y; // Pulgar arriba del índice
+      const fingersAlignment = Math.abs(index.x - middle.x) < 0.05 && 
+                              Math.abs(middle.x - ring.x) < 0.05;
+      
+      // Verificar distancias específicas de la seña de fiebre
+      const thumbIndexDistance = Math.sqrt(
+        Math.pow(thumb.x - index.x, 2) + Math.pow(thumb.y - index.y, 2)
+      );
+      
+      const palmHeight = Math.abs(wrist.y - palmBase.y);
+      const fingerSpread = Math.abs(index.x - pinky.x);
+      
+      // Condiciones específicas para fiebre alta basadas en la imagen
+      const isCorrectThumbPosition = thumbIndexDistance > 0.03 && thumbIndexDistance < 0.12;
+      const isCorrectPalmPosition = palmHeight > 0.08 && palmHeight < 0.15;
+      const isCorrectFingerSpread = fingerSpread > 0.08 && fingerSpread < 0.2;
+      
+      if (isVerticalPosition && thumbPosition && fingersAlignment && 
+          isCorrectThumbPosition && isCorrectPalmPosition && isCorrectFingerSpread) {
+        
+        const confidence = Math.max(0.8, 1.0 - Math.abs(thumbIndexDistance - 0.075) * 5);
+        return { detected: true, confidence };
+      }
+    }
+    return { detected: false, confidence: 0 };
+  }, []);
+
   // Sistema de cooldown mejorado
   const canSendAlert = useCallback((signName: string) => {
     const now = Date.now();
@@ -196,13 +236,31 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           drawLandmarks(ctx, landmarks, {color: '#FF0000', lineWidth: 1, radius: 3});
         });
         
-        // Detectar señas
+        // Detectar señas con prioridad
+        const feverResult = detectFeverSign(results.multiHandLandmarks);
         const okResult = detectOKSign(results.multiHandLandmarks);
         const loveResult = detectLoveSign(results.multiHandLandmarks);
         const peaceResult = detectPeaceSign(results.multiHandLandmarks);
         
-        // Procesar detecciones con prioridad
-        if (okResult.detected && okResult.confidence > 0.85 && canSendAlert("OK")) {
+        // Procesar detecciones con prioridad - Fiebre Alta tiene alta prioridad
+        if (feverResult.detected && feverResult.confidence > 0.8 && canSendAlert("Fiebre Alta")) {
+          const feverSign = await getSignByName("Fiebre Alta");
+          if (feverSign) {
+            const detection: DetectionResult = {
+              sign: feverSign,
+              confidence: feverResult.confidence,
+              timestamp: new Date()
+            };
+            
+            setDetectedSign(detection);
+            toast.success("🌡️ FIEBRE ALTA detectada", {
+              description: `Confianza: ${(feverResult.confidence * 100).toFixed(1)}%`,
+              duration: 2000,
+            });
+            
+            setTimeout(() => setDetectedSign(null), 2000);
+          }
+        } else if (okResult.detected && okResult.confidence > 0.85 && canSendAlert("OK")) {
           const okSign = await getSignByName("OK");
           if (okSign) {
             const detection: DetectionResult = {
@@ -263,7 +321,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
         resetDetectionSystem();
       }
     }
-  }, [smoothLandmarks, detectOKSign, detectLoveSign, detectPeaceSign, canSendAlert, getSignByName, resetDetectionSystem]);
+  }, [smoothLandmarks, detectFeverSign, detectOKSign, detectLoveSign, detectPeaceSign, canSendAlert, getSignByName, resetDetectionSystem]);
 
   // Effect principal para inicializar MediaPipe
   useEffect(() => {

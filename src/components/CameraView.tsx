@@ -25,6 +25,7 @@ export const CameraView: React.FC = () => {
       case "Amor": return "💖 AMOR";
       case "Paz": return "✌️ PAZ";
       case "OK": return "👌 OK";
+      case "Fiebre Alta": return "🌡️ FIEBRE ALTA";
       default: return `🖐️ ${signName.toUpperCase()}`;
     }
   };
@@ -93,7 +94,7 @@ export const CameraView: React.FC = () => {
         {isStreaming && (
           <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
             <p className="text-blue-700 text-sm font-medium">
-              💖 Sistema detectando automáticamente: AMOR, PAZ y OK 👌 con puntos mejorados
+              🌡️ Sistema detectando automáticamente: FIEBRE ALTA, AMOR, PAZ y OK 👌 con puntos de referencia
             </p>
           </div>
         )}

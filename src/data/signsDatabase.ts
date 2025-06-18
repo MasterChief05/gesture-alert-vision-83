@@ -55,5 +55,14 @@ export const signsDatabase: Sign[] = [
     createdAt: new Date("2024-01-06"),
     videoUrl: "https://images.unsplash.com/photo-1582655122993-6137c6b62d83?w=300&h=200&fit=crop",
     landmarks: [[0.5, 0.2], [0.3, 0.8], [0.7, 0.5]]
+  },
+  {
+    id: "7",
+    name: "Fiebre Alta",
+    description: "Seña de fiebre alta con posición específica de dedos y palma",
+    confidence: 0.92,
+    createdAt: new Date("2024-01-07"),
+    videoUrl: "/lovable-uploads/36a792af-b09b-4ed4-b765-145a54512338.png",
+    landmarks: [[0.3, 0.4], [0.7, 0.3], [0.5, 0.6], [0.4, 0.7], [0.6, 0.8]]
   }
 ];
