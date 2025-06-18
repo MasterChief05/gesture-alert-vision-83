@@ -59,11 +59,9 @@ export const CameraView: React.FC = () => {
       
       // Después de 5 segundos de detección, terminar
       setTimeout(() => {
-        if (capturePhase === 'detecting') {
-          setIsCapturing(false);
-          setCapturePhase('idle');
-          toast.info('Tiempo de captura terminado');
-        }
+        setIsCapturing(false);
+        setCapturePhase('idle');
+        toast.info('Tiempo de captura terminado');
       }, 5000);
     }
   }, [capturePhase, countdown]);
