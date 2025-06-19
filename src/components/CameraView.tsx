@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 
 export const CameraView: React.FC = () => {
   const { videoRef, isStreaming, error, startCamera, stopCamera } = useCamera();
-  const { detectedSign, isDetecting, setCanvasRef, startDetection, isDetectionActive } = useSignDetection(
+  const { detectedSign, isDetecting, setCanvasRef, startDetection, isDetectionActive, timeRemaining } = useSignDetection(
     isStreaming ? videoRef.current : null
   );
 
@@ -42,7 +42,7 @@ export const CameraView: React.FC = () => {
   return (
     <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="flex flex-col items-center space-y-4">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Detección de Señas en Tiempo Real</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">Detección Avanzada de Señas</h2>
         
         <div className="relative w-full max-w-lg">
           <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden border-4 border-blue-200 shadow-lg relative">
@@ -82,16 +82,24 @@ export const CameraView: React.FC = () => {
 
           {isDetectionActive && (
             <div className="absolute top-2 left-2 right-2">
-              <div className="bg-red-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-pulse">
-                🔍 DETECTANDO SEÑAS - 5 SEGUNDOS
+              <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-pulse">
+                <div className="flex items-center justify-center space-x-2">
+                  <Timer className="w-4 h-4" />
+                  <span>🔍 ANALIZANDO PATRONES - {timeRemaining}s</span>
+                </div>
               </div>
             </div>
           )}
           
           {detectedSign && (
             <div className="absolute bottom-2 left-2 right-2">
-              <div className="bg-green-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-bounce">
-                {getSignEmoji(detectedSign.sign.name)}
+              <div className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-bounce shadow-lg">
+                <div className="text-lg">
+                  {getSignEmoji(detectedSign.sign.name)}
+                </div>
+                <div className="text-xs mt-1">
+                  Confianza: {(detectedSign.confidence * 100).toFixed(1)}%
+                </div>
               </div>
             </div>
           )}
@@ -116,7 +124,7 @@ export const CameraView: React.FC = () => {
             >
               <Search className="w-4 h-4" />
               <span>
-                {isDetectionActive ? 'Detectando...' : 'Detectar Cualquier Seña'}
+                {isDetectionActive ? `Analizando... ${timeRemaining}s` : 'Detectar Señas (15s)'}
               </span>
             </Button>
           )}
@@ -125,22 +133,28 @@ export const CameraView: React.FC = () => {
         {isStreaming && !isDetectionActive && (
           <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 text-center">
             <p className="text-blue-700 text-sm font-medium mb-2">
-              🎯 Sistema de detección inteligente activado
+              🎯 Sistema de comparación avanzada activado
             </p>
             <p className="text-blue-600 text-xs">
-              Presiona "Detectar Cualquier Seña" para iniciar un análisis de 5 segundos que reconoce: OK 👌, Amor 💖, Paz ✌️
+              Presiona "Detectar Señas" para iniciar un análisis de 15 segundos que compara patrones continuamente: OK 👌, Amor 💖, Paz ✌️
             </p>
           </div>
         )}
 
         {isDetectionActive && (
-          <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200 text-center">
+          <div className="mt-4 p-4 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 text-center">
             <p className="text-red-700 text-sm font-medium">
-              🔥 Análisis activo - Haz cualquier seña ahora
+              🔥 Análisis comparativo activo - {timeRemaining} segundos restantes
             </p>
             <p className="text-red-600 text-xs">
-              El sistema está comparando patrones en tiempo real
+              El sistema está comparando tu seña con los patrones de referencia en tiempo real
             </p>
+            <div className="mt-2 bg-red-100 rounded-full h-2">
+              <div 
+                className="bg-red-500 h-2 rounded-full transition-all duration-1000"
+                style={{ width: `${(timeRemaining / 15) * 100}%` }}
+              ></div>
+            </div>
           </div>
         )}
       </div>
