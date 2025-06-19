@@ -3,80 +3,31 @@ import React, { useState, useEffect } from 'react';
 import { useCamera } from '@/hooks/useCamera';
 import { useSignDetection } from '@/hooks/useSignDetection';
 import { Card } from '@/components/ui/card';
-import { Camera, CameraOff, AlertCircle, Hand, Timer } from 'lucide-react';
+import { Camera, CameraOff, AlertCircle, Hand, Timer, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
 export const CameraView: React.FC = () => {
   const { videoRef, isStreaming, error, startCamera, stopCamera } = useCamera();
-  const { detectedSign, isDetecting, setCanvasRef } = useSignDetection(
+  const { detectedSign, isDetecting, setCanvasRef, startDetection, isDetectionActive } = useSignDetection(
     isStreaming ? videoRef.current : null
   );
-  
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [capturePhase, setCapturePhase] = useState<'idle' | 'countdown' | 'detecting'>('idle');
 
   const handleToggleCamera = () => {
     if (isStreaming) {
       stopCamera();
-      setIsCapturing(false);
-      setCapturePhase('idle');
-      setCountdown(0);
     } else {
       startCamera();
     }
   };
 
-  const handleCaptureSign = () => {
+  const handleStartDetection = () => {
     if (!isStreaming) {
       toast.error('Primero inicia la cámara');
       return;
     }
-
-    setIsCapturing(true);
-    setCapturePhase('countdown');
-    setCountdown(5);
-
-    toast.info('🔥 Prepárate para hacer la seña de FIEBRE', {
-      description: 'El cronómetro comenzará en 5 segundos',
-      duration: 2000
-    });
+    startDetection();
   };
-
-  useEffect(() => {
-    if (capturePhase === 'countdown' && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(countdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else if (capturePhase === 'countdown' && countdown === 0) {
-      setCapturePhase('detecting');
-      toast.success('🌡️ ¡Haz la seña de FIEBRE ahora!', {
-        description: 'Tienes 5 segundos para realizar la seña',
-        duration: 5000
-      });
-      
-      // Después de 5 segundos de detección, terminar
-      setTimeout(() => {
-        setIsCapturing(false);
-        setCapturePhase('idle');
-        toast.info('Tiempo de captura terminado');
-      }, 5000);
-    }
-  }, [capturePhase, countdown]);
-
-  // Detectar cuando se encuentra la seña durante el modo captura
-  useEffect(() => {
-    if (detectedSign && capturePhase === 'detecting' && detectedSign.sign.name === 'Fiebre Alta') {
-      setIsCapturing(false);
-      setCapturePhase('idle');
-      toast.success('🌡️ ¡SEÑA DE FIEBRE DETECTADA!', {
-        description: `Cliente con fiebre confirmado - Confianza: ${(detectedSign.confidence * 100).toFixed(1)}%`,
-        duration: 4000
-      });
-    }
-  }, [detectedSign, capturePhase]);
 
   const getSignEmoji = (signName: string) => {
     switch (signName) {
@@ -91,7 +42,7 @@ export const CameraView: React.FC = () => {
   return (
     <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="flex flex-col items-center space-y-4">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Cámara en Tiempo Real</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">Detección de Señas en Tiempo Real</h2>
         
         <div className="relative w-full max-w-lg">
           <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden border-4 border-blue-200 shadow-lg relative">
@@ -121,7 +72,7 @@ export const CameraView: React.FC = () => {
             )}
           </div>
           
-          {isStreaming && !isCapturing && (
+          {isStreaming && !isDetectionActive && (
             <div className="absolute top-2 right-2">
               <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
                 🟢 CÁMARA ACTIVA
@@ -129,25 +80,15 @@ export const CameraView: React.FC = () => {
             </div>
           )}
 
-          {capturePhase === 'countdown' && (
-            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="text-white text-center">
-                <Timer className="w-16 h-16 mx-auto mb-4 animate-pulse" />
-                <div className="text-6xl font-bold mb-2">{countdown}</div>
-                <p className="text-xl">Prepárate para la seña...</p>
-              </div>
-            </div>
-          )}
-
-          {capturePhase === 'detecting' && (
+          {isDetectionActive && (
             <div className="absolute top-2 left-2 right-2">
               <div className="bg-red-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-pulse">
-                🌡️ DETECTANDO SEÑA DE FIEBRE
+                🔍 DETECTANDO SEÑAS - 5 SEGUNDOS
               </div>
             </div>
           )}
           
-          {detectedSign && capturePhase === 'detecting' && (
+          {detectedSign && (
             <div className="absolute bottom-2 left-2 right-2">
               <div className="bg-green-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-bounce">
                 {getSignEmoji(detectedSign.sign.name)}
@@ -168,31 +109,37 @@ export const CameraView: React.FC = () => {
 
           {isStreaming && (
             <Button
-              onClick={handleCaptureSign}
-              disabled={isCapturing}
+              onClick={handleStartDetection}
+              disabled={isDetectionActive}
               variant="secondary"
               className="flex items-center space-x-2 px-6 py-2"
             >
-              <Hand className="w-4 h-4" />
+              <Search className="w-4 h-4" />
               <span>
-                {isCapturing ? 'Capturando...' : 'Capturar Seña Fiebre'}
+                {isDetectionActive ? 'Detectando...' : 'Detectar Cualquier Seña'}
               </span>
             </Button>
           )}
         </div>
 
-        {isStreaming && !isCapturing && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 text-center">
-            <p className="text-blue-700 text-sm font-medium">
-              🌡️ Presiona "Capturar Seña Fiebre" para iniciar el cronómetro de detección
+        {isStreaming && !isDetectionActive && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 text-center">
+            <p className="text-blue-700 text-sm font-medium mb-2">
+              🎯 Sistema de detección inteligente activado
+            </p>
+            <p className="text-blue-600 text-xs">
+              Presiona "Detectar Cualquier Seña" para iniciar un análisis de 5 segundos que reconoce: OK 👌, Amor 💖, Paz ✌️
             </p>
           </div>
         )}
 
-        {capturePhase === 'detecting' && (
-          <div className="mt-4 p-3 bg-red-50 rounded-lg border border-red-200 text-center">
+        {isDetectionActive && (
+          <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200 text-center">
             <p className="text-red-700 text-sm font-medium">
-              🔥 Realiza la seña de FIEBRE ALTA ahora - Puntos de referencia activos
+              🔥 Análisis activo - Haz cualquier seña ahora
+            </p>
+            <p className="text-red-600 text-xs">
+              El sistema está comparando patrones en tiempo real
             </p>
           </div>
         )}
