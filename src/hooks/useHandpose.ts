@@ -1,20 +1,36 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react';
-import * as tf from '@tensorflow/tfjs';
-import * as handpose from '@tensorflow-models/handpose';
+
+// Tipos para TensorFlow.js y Handpose
+interface HandPrediction {
+  handInViewConfidence: number;
+  boundingBox: {
+    topLeft: [number, number];
+    bottomRight: [number, number];
+  };
+  landmarks: number[][];
+  annotations: {
+    [key: string]: number[][];
+  };
+}
 
 export const useHandpose = (videoElement: HTMLVideoElement | null) => {
   const modelRef = useRef<any>(null);
   const [isModelLoaded, setIsModelLoaded] = useState(false);
-  const [predictions, setPredictions] = useState<any[]>([]);
+  const [predictions, setPredictions] = useState<HandPrediction[]>([]);
   const animationRef = useRef<number>();
   
   const loadModel = useCallback(async () => {
     try {
-      console.log('🔄 Cargando modelo Handpose...');
+      console.log('🔄 Cargando TensorFlow.js y modelo Handpose...');
+      
+      // Importación dinámica para evitar problemas de build
+      const tf = await import('@tensorflow/tfjs');
+      const handpose = await import('@tensorflow-models/handpose');
       
       // Configurar TensorFlow.js
       await tf.ready();
+      console.log('✅ TensorFlow.js listo');
       
       // Cargar modelo de handpose
       const model = await handpose.load();
@@ -24,6 +40,7 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
       console.log('✅ Modelo Handpose cargado correctamente');
     } catch (error) {
       console.error('❌ Error cargando modelo:', error);
+      setIsModelLoaded(false);
     }
   }, []);
   
@@ -35,7 +52,7 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
     try {
       // Detectar manos en el video
       const predictions = await modelRef.current.estimateHands(videoElement);
-      setPredictions(predictions);
+      setPredictions(predictions as HandPrediction[]);
       
       // Continuar detectando
       animationRef.current = requestAnimationFrame(detectHands);
