@@ -17,9 +17,9 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const detectionCountdownRef = useRef<number>(0);
   const detectionSamplesRef = useRef<Array<{signName: string, confidence: number}>>([]);
   
-  const DETECTION_COOLDOWN = 500; // Reducido para más sensibilidad
-  const DETECTION_TIMEOUT = 15000; // 15 segundos para detectar
-  const SAMPLE_THRESHOLD = 5; // Necesita 5 detecciones consistentes
+  const DETECTION_COOLDOWN = 200; // Más sensible
+  const DETECTION_TIMEOUT = 15000; // 15 segundos
+  const SAMPLE_THRESHOLD = 3; // Solo necesita 3 detecciones consistentes
 
   const canDetect = useCallback(() => {
     const now = Date.now();
@@ -50,41 +50,46 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
           const isImportant = [0, 4, 8, 12, 16, 20].includes(index);
           
           ctx.beginPath();
-          ctx.arc(x, y, isImportant ? 10 : 6, 0, 2 * Math.PI);
+          ctx.arc(x, y, isImportant ? 12 : 8, 0, 2 * Math.PI);
           ctx.fillStyle = isImportant ? '#FF6B35' : '#4ECDC4';
           ctx.fill();
           
           // Contorno para mejor visibilidad
           ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 3;
           ctx.stroke();
           
           // Números en puntos importantes
           if (isImportant) {
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 14px Arial';
+            ctx.font = 'bold 16px Arial';
             ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 3;
-            ctx.strokeText(index.toString(), x + 12, y - 12);
-            ctx.fillText(index.toString(), x + 12, y - 12);
+            ctx.lineWidth = 4;
+            ctx.strokeText(index.toString(), x + 15, y - 15);
+            ctx.fillText(index.toString(), x + 15, y - 15);
           }
         });
         
         // Detectar señas personalizadas si está en modo captura
         if (canDetect() && detectionCountdownRef.current > 0) {
+          console.log('🔍 Intentando detectar señas...');
           const customResult = detectCustomSign(prediction.landmarks);
           
-          if (customResult.detected && customResult.confidence > 0.6) {
+          if (customResult.detected && customResult.confidence > 0.5) {
+            console.log('✅ Seña detectada!', customResult.signName, 'Confianza:', customResult.confidence);
+            
             // Añadir muestra a la colección
             detectionSamplesRef.current.push({
               signName: customResult.signName,
               confidence: customResult.confidence
             });
             
-            // Mantener solo las últimas 10 muestras
-            if (detectionSamplesRef.current.length > 10) {
+            // Mantener solo las últimas 8 muestras
+            if (detectionSamplesRef.current.length > 8) {
               detectionSamplesRef.current.shift();
             }
+            
+            console.log('📊 Muestras actuales:', detectionSamplesRef.current);
             
             // Verificar si tenemos suficientes detecciones consistentes
             const recentSamples = detectionSamplesRef.current.slice(-SAMPLE_THRESHOLD);
@@ -92,10 +97,13 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
             
             if (consistentSign) {
               const avgConfidence = recentSamples.reduce((sum, sample) => sum + sample.confidence, 0) / recentSamples.length;
+              console.log('🎯 Detección consistente confirmada:', consistentSign, 'Confianza promedio:', avgConfidence);
               detectSign(avgConfidence, consistentSign);
             }
             
             lastDetectionRef.current = Date.now();
+          } else if (customResult.detected) {
+            console.log('⚠️ Seña detectada pero confianza baja:', customResult.signName, customResult.confidence);
           }
         }
         
@@ -114,13 +122,15 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       signCounts[sample.signName] = (signCounts[sample.signName] || 0) + 1;
     });
     
+    console.log('📈 Conteo de señas en muestras:', signCounts);
+    
     // Encontrar la seña más frecuente
     const mostFrequent = Object.entries(signCounts).reduce((a, b) => 
       signCounts[a[0]] > signCounts[b[0]] ? a : b
     );
     
-    // Debe aparecer al menos 3 veces de 5 para ser considerada válida
-    return mostFrequent[1] >= 3 ? mostFrequent[0] : null;
+    // Debe aparecer al menos 2 veces de 3 para ser considerada válida
+    return mostFrequent[1] >= 2 ? mostFrequent[0] : null;
   }, []);
   
   const detectSign = useCallback(async (confidence: number, signName: string) => {
@@ -158,18 +168,21 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
     detectionSamplesRef.current = []; // Limpiar muestras previas
     lastDetectionRef.current = Date.now();
     
+    console.log('🚀 Iniciando detección de señas por 15 segundos');
+    
     toast.info('🔍 Iniciando detección avanzada de señas', {
-      description: 'Tienes 15 segundos para hacer cualquier seña - El sistema compara patrones continuamente',
+      description: 'Tienes 15 segundos - Haz las señas: OK 👌, PAZ ✌️, AMOR 💖',
       duration: 3000
     });
     
-    // Countdown visual cada 3 segundos
+    // Countdown visual cada segundo
     const countdownInterval = setInterval(() => {
       detectionCountdownRef.current -= 1000;
       
       const secondsLeft = Math.ceil(detectionCountdownRef.current / 1000);
       
       if (secondsLeft > 0 && secondsLeft % 5 === 0) {
+        console.log(`⏱️ ${secondsLeft} segundos restantes`);
         toast.info(`⏱️ ${secondsLeft} segundos restantes`, {
           description: 'Continúa haciendo la seña para mejor detección',
           duration: 1500
@@ -178,6 +191,7 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       
       if (detectionCountdownRef.current <= 0) {
         clearInterval(countdownInterval);
+        console.log('⏰ Tiempo de detección completado');
         toast.info('⏰ Tiempo de detección completado');
       }
     }, 1000);

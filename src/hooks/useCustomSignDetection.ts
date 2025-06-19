@@ -1,38 +1,36 @@
 
 import { useCallback } from 'react';
 
-// Patrones mejorados basados en análisis geométrico de la imagen
+// Detección mejorada con logs detallados para debugging
 export const useCustomSignDetection = () => {
   
   const detectCustomSign = useCallback((landmarks: number[][]) => {
-    if (!landmarks || landmarks.length < 21) return { detected: false, confidence: 0, signName: '' };
+    if (!landmarks || landmarks.length < 21) {
+      console.log('❌ No hay suficientes landmarks:', landmarks?.length);
+      return { detected: false, confidence: 0, signName: '' };
+    }
     
-    // Puntos clave para análisis más preciso
-    const thumb = landmarks[4];      // Pulgar
-    const index = landmarks[8];      // Índice  
-    const middle = landmarks[12];    // Medio
-    const ring = landmarks[16];      // Anular
-    const pinky = landmarks[20];     // Meñique
-    const wrist = landmarks[0];      // Muñeca
-    const thumbBase = landmarks[2];  // Base del pulgar
-    const indexBase = landmarks[5];  // Base del índice
+    console.log('🔍 Analizando landmarks:', landmarks.length, 'puntos');
     
-    // Detectar seña "OK" con geometría mejorada
+    // Detectar seña "OK" 
     const okResult = detectOKSignAdvanced(landmarks);
-    if (okResult.confidence > 0.65) {
+    console.log('👌 Resultado OK:', okResult);
+    if (okResult.confidence > 0.6) {
       return { detected: true, confidence: okResult.confidence, signName: 'OK' };
     }
     
-    // Detectar seña de "Amor" con análisis de forma
-    const loveResult = detectLoveSignAdvanced(landmarks);
-    if (loveResult.confidence > 0.6) {
-      return { detected: true, confidence: loveResult.confidence, signName: 'Amor' };
+    // Detectar seña de "Paz" (V con dos dedos)
+    const peaceResult = detectPeaceSignAdvanced(landmarks);
+    console.log('✌️ Resultado Paz:', peaceResult);
+    if (peaceResult.confidence > 0.65) {
+      return { detected: true, confidence: peaceResult.confidence, signName: 'Paz' };
     }
     
-    // Detectar seña de "Paz" con verificación de ángulos
-    const peaceResult = detectPeaceSignAdvanced(landmarks);
-    if (peaceResult.confidence > 0.7) {
-      return { detected: true, confidence: peaceResult.confidence, signName: 'Paz' };
+    // Detectar seña de "Amor" (corazón con las manos)
+    const loveResult = detectLoveSignAdvanced(landmarks);
+    console.log('💖 Resultado Amor:', loveResult);
+    if (loveResult.confidence > 0.55) {
+      return { detected: true, confidence: loveResult.confidence, signName: 'Amor' };
     }
     
     return { detected: false, confidence: 0, signName: '' };
@@ -46,64 +44,27 @@ export const useCustomSignDetection = () => {
     const pinky = landmarks[20];
     const wrist = landmarks[0];
     
-    // Calcular distancia del círculo OK
+    // Distancia entre pulgar e índice (círculo OK)
     const thumbIndexDistance = Math.sqrt(
       Math.pow(thumb[0] - index[0], 2) + Math.pow(thumb[1] - index[1], 2)
     );
     
-    // Verificar círculo formado (ajustado según la imagen)
-    const isCircleFormed = thumbIndexDistance < 60 && thumbIndexDistance > 15;
+    // Verificar círculo formado
+    const isCircleFormed = thumbIndexDistance < 50 && thumbIndexDistance > 10;
     
-    // Verificar que otros dedos estén extendidos (más estricto)
-    const middleExtended = middle[1] < wrist[1] - 40;
-    const ringExtended = ring[1] < wrist[1] - 35;
-    const pinkyExtended = pinky[1] < wrist[1] - 30;
+    // Verificar que otros dedos estén extendidos
+    const middleExtended = middle[1] < wrist[1] - 30;
+    const ringExtended = ring[1] < wrist[1] - 25;
+    const pinkyExtended = pinky[1] < wrist[1] - 20;
     
-    // Verificar orientación y posición de la mano
-    const handOriented = Math.abs(wrist[1] - middle[1]) > 30;
-    const properAngle = checkFingerAngles([middle, ring, pinky], wrist);
-    
-    // Calcular confianza con pesos ajustados
     let confidence = 0;
-    if (isCircleFormed) confidence += 0.35;
+    if (isCircleFormed) confidence += 0.4;
     if (middleExtended) confidence += 0.25;
     if (ringExtended) confidence += 0.2;
     if (pinkyExtended) confidence += 0.15;
-    if (handOriented && properAngle) confidence += 0.05;
     
-    return { confidence };
-  }, []);
-  
-  const detectLoveSignAdvanced = useCallback((landmarks: number[][]) => {
-    const thumb = landmarks[4];
-    const index = landmarks[8];
-    const middle = landmarks[12];
-    const ring = landmarks[16];
-    const pinky = landmarks[20];
-    const wrist = landmarks[0];
-    
-    // Verificar forma de corazón con más precisión
-    const thumbIndexDistance = Math.sqrt(
-      Math.pow(thumb[0] - index[0], 2) + Math.pow(thumb[1] - index[1], 2)
-    );
-    
-    const middleRingDistance = Math.sqrt(
-      Math.pow(middle[0] - ring[0], 2) + Math.pow(middle[1] - ring[1], 2)
-    );
-    
-    // Verificar que los dedos formen la parte superior del corazón
-    const thumbIndexClose = thumbIndexDistance < 80 && thumbIndexDistance > 20;
-    const middleRingClose = middleRingDistance < 50;
-    
-    // Verificar posición relativa para forma de corazón
-    const heartShape = checkHeartFormation([thumb, index, middle, ring]);
-    const properOrientation = middle[1] < wrist[1] - 20 && ring[1] < wrist[1] - 20;
-    
-    let confidence = 0;
-    if (thumbIndexClose) confidence += 0.3;
-    if (middleRingClose) confidence += 0.25;
-    if (heartShape) confidence += 0.3;
-    if (properOrientation) confidence += 0.15;
+    console.log('👌 OK - Círculo:', isCircleFormed, 'Dist:', thumbIndexDistance.toFixed(1), 
+               'Dedos ext:', middleExtended, ringExtended, pinkyExtended, 'Conf:', confidence);
     
     return { confidence };
   }, []);
@@ -116,62 +77,77 @@ export const useCustomSignDetection = () => {
     const wrist = landmarks[0];
     const thumb = landmarks[4];
     
-    // Verificar V con análisis de ángulos
-    const indexUp = index[1] < wrist[1] - 60;
-    const middleUp = middle[1] < wrist[1] - 60;
-    const ringDown = ring[1] > wrist[1] - 30;
-    const pinkyDown = pinky[1] > wrist[1] - 30;
-    const thumbTucked = thumb[1] > wrist[1] - 20;
+    // Verificar que índice y medio estén arriba
+    const indexUp = index[1] < wrist[1] - 40;
+    const middleUp = middle[1] < wrist[1] - 40;
+    
+    // Verificar que anular y meñique estén abajo
+    const ringDown = ring[1] > wrist[1] - 20;
+    const pinkyDown = pinky[1] > wrist[1] - 20;
+    const thumbDown = thumb[1] > wrist[1] - 25;
     
     // Verificar separación entre índice y medio (V)
     const fingerSeparation = Math.abs(index[0] - middle[0]);
-    const properV = fingerSeparation > 30 && fingerSeparation < 100;
+    const properV = fingerSeparation > 25 && fingerSeparation < 80;
     
-    // Verificar ángulo de la V
-    const vAngle = calculateVAngle(index, middle, wrist);
-    const goodAngle = vAngle > 15 && vAngle < 60;
+    // Verificar que los dedos estén relativamente a la misma altura
+    const sameHeight = Math.abs(index[1] - middle[1]) < 30;
     
     let confidence = 0;
     if (indexUp) confidence += 0.25;
     if (middleUp) confidence += 0.25;
     if (ringDown) confidence += 0.15;
     if (pinkyDown) confidence += 0.15;
-    if (properV && goodAngle) confidence += 0.2;
+    if (thumbDown) confidence += 0.1;
+    if (properV && sameHeight) confidence += 0.1;
+    
+    console.log('✌️ PAZ - Índice up:', indexUp, 'Medio up:', middleUp, 
+               'Ring/Pinky down:', ringDown, pinkyDown, 'V:', properV, 
+               'Sep:', fingerSeparation.toFixed(1), 'Conf:', confidence);
     
     return { confidence };
   }, []);
   
-  // Funciones auxiliares para análisis geométrico
-  const checkFingerAngles = useCallback((fingers: number[][], wrist: number[]) => {
-    return fingers.every(finger => {
-      const angle = Math.atan2(finger[1] - wrist[1], finger[0] - wrist[0]);
-      return Math.abs(angle) < Math.PI / 3; // Ángulo razonable
-    });
-  }, []);
-  
-  const checkHeartFormation = useCallback((points: number[][]) => {
-    // Verificar si los puntos forman una configuración similar a un corazón
-    const [thumb, index, middle, ring] = points;
-    const centerX = (thumb[0] + index[0] + middle[0] + ring[0]) / 4;
-    const centerY = (thumb[1] + index[1] + middle[1] + ring[1]) / 4;
+  const detectLoveSignAdvanced = useCallback((landmarks: number[][]) => {
+    const thumb = landmarks[4];
+    const index = landmarks[8];
+    const middle = landmarks[12];
+    const ring = landmarks[16];
+    const pinky = landmarks[20];
+    const wrist = landmarks[0];
     
-    // Los puntos superiores deben estar cerca del centro
-    const thumbDistFromCenter = Math.sqrt(Math.pow(thumb[0] - centerX, 2) + Math.pow(thumb[1] - centerY, 2));
-    const indexDistFromCenter = Math.sqrt(Math.pow(index[0] - centerX, 2) + Math.pow(index[1] - centerY, 2));
+    // Para "amor" buscamos una forma específica: pulgar e índice juntos formando parte de un corazón
+    const thumbIndexDistance = Math.sqrt(
+      Math.pow(thumb[0] - index[0], 2) + Math.pow(thumb[1] - index[1], 2)
+    );
     
-    return thumbDistFromCenter < 50 && indexDistFromCenter < 50;
-  }, []);
-  
-  const calculateVAngle = useCallback((index: number[], middle: number[], wrist: number[]) => {
-    const vector1 = [index[0] - wrist[0], index[1] - wrist[1]];
-    const vector2 = [middle[0] - wrist[0], middle[1] - wrist[1]];
+    // Los dedos medio y anular también deben estar en posición específica
+    const middleRingDistance = Math.sqrt(
+      Math.pow(middle[0] - ring[0], 2) + Math.pow(middle[1] - ring[1], 2)
+    );
     
-    const dot = vector1[0] * vector2[0] + vector1[1] * vector2[1];
-    const mag1 = Math.sqrt(vector1[0] * vector1[0] + vector1[1] * vector1[1]);
-    const mag2 = Math.sqrt(vector2[0] * vector2[0] + vector2[1] * vector2[1]);
+    // Verificar proximidad para formar corazón
+    const thumbIndexClose = thumbIndexDistance < 60 && thumbIndexDistance > 15;
+    const middleRingClose = middleRingDistance < 45;
     
-    const angle = Math.acos(dot / (mag1 * mag2)) * (180 / Math.PI);
-    return angle;
+    // Verificar posición relativa de los dedos (deben estar hacia arriba)
+    const fingersUp = index[1] < wrist[1] - 20 && middle[1] < wrist[1] - 20 && 
+                     ring[1] < wrist[1] - 20 && thumb[1] < wrist[1] - 10;
+    
+    // Verificar que el meñique esté más separado
+    const pinkyAway = Math.abs(pinky[0] - ring[0]) > 20;
+    
+    let confidence = 0;
+    if (thumbIndexClose) confidence += 0.25;
+    if (middleRingClose) confidence += 0.25;
+    if (fingersUp) confidence += 0.3;
+    if (pinkyAway) confidence += 0.2;
+    
+    console.log('💖 AMOR - Pulgar-Índice:', thumbIndexClose, 'Dist:', thumbIndexDistance.toFixed(1),
+               'Medio-Anular:', middleRingClose, 'Dedos up:', fingersUp, 
+               'Meñique sep:', pinkyAway, 'Conf:', confidence);
+    
+    return { confidence };
   }, []);
   
   return { detectCustomSign };
