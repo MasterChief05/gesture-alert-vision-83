@@ -1,7 +1,7 @@
 
 import { useRef, useEffect, useCallback, useState } from 'react';
 
-// Tipos para TensorFlow.js y Handpose
+// Tipos para MediaPipe Hands
 interface HandPrediction {
   handInViewConfidence: number;
   boundingBox: {
@@ -22,28 +22,55 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
   
   const loadModel = useCallback(async () => {
     try {
-      console.log('🔄 Cargando TensorFlow.js y modelo Handpose...');
+      console.log('🔄 Cargando MediaPipe Hands...');
       
-      // Importación dinámica más segura
-      const tf = await import('@tensorflow/tfjs');
-      console.log('✅ TensorFlow.js importado');
+      // Usar MediaPipe Hands en lugar de TensorFlow
+      const { Hands } = await import('@mediapipe/hands');
+      const { drawConnectors, drawLandmarks } = await import('@mediapipe/drawing_utils');
       
-      // Configurar TensorFlow.js
-      await tf.ready();
-      console.log('✅ TensorFlow.js listo');
+      console.log('✅ MediaPipe Hands importado');
       
-      // Importar handpose después de que TensorFlow esté listo
-      const handposeModule = await import('@tensorflow-models/handpose');
-      console.log('✅ Handpose importado');
+      // Configurar MediaPipe Hands
+      const hands = new Hands({
+        locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }
+      });
       
-      // Cargar modelo de handpose
-      const model = await handposeModule.load();
-      modelRef.current = model;
+      hands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5
+      });
+      
+      hands.onResults((results) => {
+        if (results.multiHandLandmarks) {
+          const predictions = results.multiHandLandmarks.map((landmarks, index) => ({
+            handInViewConfidence: 0.9,
+            boundingBox: {
+              topLeft: [0, 0] as [number, number],
+              bottomRight: [100, 100] as [number, number]
+            },
+            landmarks: landmarks.map(landmark => [
+              landmark.x * 640, // Escalar a dimensiones del video
+              landmark.y * 480,
+              landmark.z || 0
+            ]),
+            annotations: {}
+          }));
+          setPredictions(predictions);
+        } else {
+          setPredictions([]);
+        }
+      });
+      
+      modelRef.current = hands;
       setIsModelLoaded(true);
       
-      console.log('✅ Modelo Handpose cargado correctamente');
+      console.log('✅ MediaPipe Hands cargado correctamente');
     } catch (error) {
-      console.error('❌ Error cargando modelo:', error);
+      console.error('❌ Error cargando MediaPipe:', error);
       setIsModelLoaded(false);
     }
   }, []);
@@ -54,9 +81,8 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
     }
     
     try {
-      // Detectar manos en el video
-      const predictions = await modelRef.current.estimateHands(videoElement);
-      setPredictions(predictions as HandPrediction[]);
+      // Enviar frame a MediaPipe
+      await modelRef.current.send({ image: videoElement });
       
       // Continuar detectando
       animationRef.current = requestAnimationFrame(detectHands);
