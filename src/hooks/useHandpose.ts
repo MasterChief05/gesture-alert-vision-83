@@ -24,15 +24,17 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
     try {
       console.log('🔄 Cargando TensorFlow.js y modelo Handpose...');
       
-      // Importación dinámica para evitar problemas de build
-      const [tf, handposeModule] = await Promise.all([
-        import('@tensorflow/tfjs'),
-        import('@tensorflow-models/handpose')
-      ]);
+      // Importación dinámica más segura
+      const tf = await import('@tensorflow/tfjs');
+      console.log('✅ TensorFlow.js importado');
       
       // Configurar TensorFlow.js
       await tf.ready();
       console.log('✅ TensorFlow.js listo');
+      
+      // Importar handpose después de que TensorFlow esté listo
+      const handposeModule = await import('@tensorflow-models/handpose');
+      console.log('✅ Handpose importado');
       
       // Cargar modelo de handpose
       const model = await handposeModule.load();
