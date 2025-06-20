@@ -16,38 +16,25 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
   const { predictions, isModelLoaded, modelError } = useHandpose(isStreaming ? videoRef.current : null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [isInitialized, setIsInitialized] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const landmarksSequenceRef = useRef<number[][][]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingIntervalRef = useRef<number | null>(null);
 
-  // Auto-inicializar cámara al montar el componente
+  // Inicializar cámara cuando el componente se monta
   useEffect(() => {
-    const initializeSystem = async () => {
-      console.log('🔄 Inicializando sistema de grabación...');
-      try {
-        await startCamera();
-        setIsInitialized(true);
-        console.log('✅ Sistema inicializado correctamente');
-      } catch (error) {
-        console.error('❌ Error inicializando sistema:', error);
-        toast.error('Error al acceder a la cámara');
-      }
-    };
-
-    if (!isInitialized) {
-      initializeSystem();
-    }
+    console.log('🎥 VideoRecorder montado, iniciando cámara...');
+    startCamera();
 
     return () => {
+      console.log('🛑 VideoRecorder desmontado, limpiando...');
       stopCamera();
       if (recordingIntervalRef.current) {
         clearInterval(recordingIntervalRef.current);
       }
     };
-  }, [startCamera, stopCamera, isInitialized]);
+  }, [startCamera, stopCamera]);
 
   // Dibujar landmarks optimizado
   const drawLandmarks = useCallback(() => {
@@ -114,7 +101,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
     console.log('🎬 Intentando iniciar grabación...');
     
     if (!isStreaming) {
-      toast.error('La cámara no está activa. Esperando inicialización...');
+      toast.error('La cámara no está activa');
       return;
     }
 
@@ -123,17 +110,13 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
       return;
     }
 
-    if (!videoRef.current) {
+    if (!videoRef.current || !videoRef.current.srcObject) {
       toast.error('Video no disponible');
       return;
     }
 
     try {
       const stream = videoRef.current.srcObject as MediaStream;
-      if (!stream) {
-        toast.error('Stream de video no disponible');
-        return;
-      }
       
       // Verificar soporte de codecs
       let mimeType = 'video/webm;codecs=vp9';
@@ -213,7 +196,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
       canRecord: false
     };
     
-    if (!isInitialized || !isStreaming) return { 
+    if (!isStreaming) return { 
       icon: Camera, 
       color: 'text-yellow-500', 
       text: 'Inicializando cámara...',
@@ -291,7 +274,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
             <div className="absolute inset-0 flex items-center justify-center bg-black/50">
               <div className="text-white text-center">
                 <Camera className="w-12 h-12 mx-auto mb-2 animate-pulse" />
-                <p>Iniciando cámara...</p>
+                <p>Inicializando cámara...</p>
               </div>
             </div>
           )}
