@@ -19,77 +19,98 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
   const [isModelLoaded, setIsModelLoaded] = useState(false);
   const [predictions, setPredictions] = useState<HandPrediction[]>([]);
   const animationRef = useRef<number>();
+  const [modelError, setModelError] = useState<string | null>(null);
   
   const loadModel = useCallback(async () => {
     try {
-      console.log('🔄 Cargando MediaPipe Hands...');
+      console.log('🔄 Intentando cargar MediaPipe Hands...');
+      setModelError(null);
       
-      // Usar MediaPipe Hands en lugar de TensorFlow
-      const { Hands } = await import('@mediapipe/hands');
-      const { drawConnectors, drawLandmarks } = await import('@mediapipe/drawing_utils');
-      
-      console.log('✅ MediaPipe Hands importado');
-      
-      // Configurar MediaPipe Hands
-      const hands = new Hands({
-        locateFile: (file) => {
-          return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+      // Usar un enfoque más simple primero
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+      script.onload = async () => {
+        try {
+          // @ts-ignore - MediaPipe se carga globalmente
+          const { Hands } = window;
+          
+          if (!Hands) {
+            throw new Error('MediaPipe Hands no está disponible');
+          }
+          
+          const hands = new Hands({
+            locateFile: (file: string) => {
+              return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+          });
+          
+          hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 0, // Usar modelo más simple
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5
+          });
+          
+          hands.onResults((results: any) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+              const predictions = results.multiHandLandmarks.map((landmarks: any) => ({
+                handInViewConfidence: 0.9,
+                boundingBox: {
+                  topLeft: [0, 0] as [number, number],
+                  bottomRight: [640, 480] as [number, number]
+                },
+                landmarks: landmarks.map((landmark: any) => [
+                  landmark.x * 640,
+                  landmark.y * 480,
+                  landmark.z || 0
+                ]),
+                annotations: {}
+              }));
+              setPredictions(predictions);
+            } else {
+              setPredictions([]);
+            }
+          });
+          
+          modelRef.current = hands;
+          setIsModelLoaded(true);
+          console.log('✅ MediaPipe Hands cargado correctamente');
+          
+        } catch (error) {
+          console.error('❌ Error configurando MediaPipe:', error);
+          setModelError('Error configurando MediaPipe');
+          setIsModelLoaded(false);
         }
-      });
+      };
       
-      hands.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5
-      });
+      script.onerror = () => {
+        console.error('❌ Error cargando script de MediaPipe');
+        setModelError('Error cargando MediaPipe desde CDN');
+        setIsModelLoaded(false);
+      };
       
-      hands.onResults((results) => {
-        if (results.multiHandLandmarks) {
-          const predictions = results.multiHandLandmarks.map((landmarks, index) => ({
-            handInViewConfidence: 0.9,
-            boundingBox: {
-              topLeft: [0, 0] as [number, number],
-              bottomRight: [100, 100] as [number, number]
-            },
-            landmarks: landmarks.map(landmark => [
-              landmark.x * 640, // Escalar a dimensiones del video
-              landmark.y * 480,
-              landmark.z || 0
-            ]),
-            annotations: {}
-          }));
-          setPredictions(predictions);
-        } else {
-          setPredictions([]);
-        }
-      });
+      document.head.appendChild(script);
       
-      modelRef.current = hands;
-      setIsModelLoaded(true);
-      
-      console.log('✅ MediaPipe Hands cargado correctamente');
     } catch (error) {
-      console.error('❌ Error cargando MediaPipe:', error);
+      console.error('❌ Error general cargando MediaPipe:', error);
+      setModelError('Error general de MediaPipe');
       setIsModelLoaded(false);
     }
   }, []);
   
   const detectHands = useCallback(async () => {
     if (!videoElement || !modelRef.current || !isModelLoaded) {
+      animationRef.current = requestAnimationFrame(detectHands);
       return;
     }
     
     try {
-      // Enviar frame a MediaPipe
       await modelRef.current.send({ image: videoElement });
-      
-      // Continuar detectando
-      animationRef.current = requestAnimationFrame(detectHands);
     } catch (error) {
-      console.warn('Error en detección:', error);
-      animationRef.current = requestAnimationFrame(detectHands);
+      console.warn('Error en detección de manos:', error);
     }
+    
+    animationRef.current = requestAnimationFrame(detectHands);
   }, [videoElement, isModelLoaded]);
   
   useEffect(() => {
@@ -110,6 +131,7 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
   
   return {
     predictions,
-    isModelLoaded
+    isModelLoaded,
+    modelError
   };
 };
