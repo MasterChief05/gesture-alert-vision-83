@@ -9,17 +9,17 @@ import { toast } from 'sonner';
 export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
   const [detectedSign, setDetectedSign] = useState<DetectionResult | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
-  const { getSignByName } = useSigns();
+  const { signs } = useSigns(); // Obtener señas de la base de datos
   const { predictions, isModelLoaded } = useHandpose(videoElement);
   const { detectCustomSign } = useCustomSignDetection();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastDetectionRef = useRef<number>(0);
   const detectionCountdownRef = useRef<number>(0);
-  const detectionSamplesRef = useRef<Array<{signName: string, confidence: number}>>([]);
+  const detectionSamplesRef = useRef<Array<{signName: string, confidence: number, sign: Sign}>>([]);
   
-  const DETECTION_COOLDOWN = 200; // Más sensible
-  const DETECTION_TIMEOUT = 15000; // 15 segundos
-  const SAMPLE_THRESHOLD = 3; // Solo necesita 3 detecciones consistentes
+  const DETECTION_COOLDOWN = 500; // Menos frecuente para mejor precisión
+  const DETECTION_TIMEOUT = 10000; // 10 segundos
+  const SAMPLE_THRESHOLD = 3; // Necesita 3 detecciones consistentes
 
   const canDetect = useCallback(() => {
     const now = Date.now();
@@ -41,51 +41,41 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
       if (prediction.landmarks) {
         setIsDetecting(true);
         
-        // Dibujar todos los puntos con mayor detalle
+        // Dibujar todos los puntos
         prediction.landmarks.forEach((landmark: number[], index: number) => {
           const x = landmark[0];
           const y = landmark[1];
           
-          // Puntos importantes más grandes y coloridos
+          // Puntos importantes más grandes
           const isImportant = [0, 4, 8, 12, 16, 20].includes(index);
           
           ctx.beginPath();
-          ctx.arc(x, y, isImportant ? 12 : 8, 0, 2 * Math.PI);
-          ctx.fillStyle = isImportant ? '#FF6B35' : '#4ECDC4';
+          ctx.arc(x, y, isImportant ? 8 : 5, 0, 2 * Math.PI);
+          ctx.fillStyle = isImportant ? '#10B981' : '#3B82F6';
           ctx.fill();
           
-          // Contorno para mejor visibilidad
           ctx.strokeStyle = '#FFFFFF';
-          ctx.lineWidth = 3;
+          ctx.lineWidth = 2;
           ctx.stroke();
-          
-          // Números en puntos importantes
-          if (isImportant) {
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 16px Arial';
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 4;
-            ctx.strokeText(index.toString(), x + 15, y - 15);
-            ctx.fillText(index.toString(), x + 15, y - 15);
-          }
         });
         
-        // Detectar señas personalizadas si está en modo captura
-        if (canDetect() && detectionCountdownRef.current > 0) {
-          console.log('🔍 Intentando detectar señas...');
-          const customResult = detectCustomSign(prediction.landmarks);
+        // Detectar señas si está en modo captura
+        if (canDetect() && detectionCountdownRef.current > 0 && signs.length > 0) {
+          console.log('🔍 Comparando con señas almacenadas...');
+          const customResult = detectCustomSign(prediction.landmarks, signs);
           
-          if (customResult.detected && customResult.confidence > 0.5) {
+          if (customResult.detected && customResult.confidence > 0.7) {
             console.log('✅ Seña detectada!', customResult.signName, 'Confianza:', customResult.confidence);
             
             // Añadir muestra a la colección
             detectionSamplesRef.current.push({
               signName: customResult.signName,
-              confidence: customResult.confidence
+              confidence: customResult.confidence,
+              sign: customResult.matchedSign!
             });
             
-            // Mantener solo las últimas 8 muestras
-            if (detectionSamplesRef.current.length > 8) {
+            // Mantener solo las últimas 5 muestras
+            if (detectionSamplesRef.current.length > 5) {
               detectionSamplesRef.current.shift();
             }
             
@@ -97,112 +87,93 @@ export const useSignDetection = (videoElement: HTMLVideoElement | null) => {
             
             if (consistentSign) {
               const avgConfidence = recentSamples.reduce((sum, sample) => sum + sample.confidence, 0) / recentSamples.length;
-              console.log('🎯 Detección consistente confirmada:', consistentSign, 'Confianza promedio:', avgConfidence);
+              console.log('🎯 Detección consistente confirmada:', consistentSign.name, 'Confianza promedio:', avgConfidence);
               detectSign(avgConfidence, consistentSign);
             }
             
             lastDetectionRef.current = Date.now();
-          } else if (customResult.detected) {
-            console.log('⚠️ Seña detectada pero confianza baja:', customResult.signName, customResult.confidence);
           }
         }
         
         setTimeout(() => setIsDetecting(false), 100);
       }
     });
-  }, [predictions, detectCustomSign, canDetect]);
+  }, [predictions, detectCustomSign, canDetect, signs]);
   
   // Verificar detección consistente
-  const checkConsistentDetection = useCallback((samples: Array<{signName: string, confidence: number}>) => {
+  const checkConsistentDetection = useCallback((samples: Array<{signName: string, confidence: number, sign: Sign}>) => {
     if (samples.length < SAMPLE_THRESHOLD) return null;
     
     // Contar ocurrencias de cada seña
-    const signCounts: {[key: string]: number} = {};
+    const signCounts: {[key: string]: {count: number, sign: Sign}} = {};
     samples.forEach(sample => {
-      signCounts[sample.signName] = (signCounts[sample.signName] || 0) + 1;
+      if (!signCounts[sample.signName]) {
+        signCounts[sample.signName] = { count: 0, sign: sample.sign };
+      }
+      signCounts[sample.signName].count++;
     });
     
     console.log('📈 Conteo de señas en muestras:', signCounts);
     
     // Encontrar la seña más frecuente
     const mostFrequent = Object.entries(signCounts).reduce((a, b) => 
-      signCounts[a[0]] > signCounts[b[0]] ? a : b
+      signCounts[a[0]].count > signCounts[b[0]].count ? a : b
     );
     
     // Debe aparecer al menos 2 veces de 3 para ser considerada válida
-    return mostFrequent[1] >= 2 ? mostFrequent[0] : null;
+    return mostFrequent[1].count >= 2 ? mostFrequent[1].sign : null;
   }, []);
   
-  const detectSign = useCallback(async (confidence: number, signName: string) => {
-    const sign = await getSignByName(signName);
-    if (sign) {
-      detectionCountdownRef.current = 0; // Detener detección
-      detectionSamplesRef.current = []; // Limpiar muestras
-      
-      const detection: DetectionResult = {
-        sign,
-        confidence,
-        timestamp: new Date()
-      };
-      
-      setDetectedSign(detection);
-      console.log(`🎯 Seña "${signName}" detectada con comparación mejorada:`, detection);
-      
-      toast.success(`🎯 ¡SEÑA ${signName.toUpperCase()} DETECTADA!`, {
-        description: `Patrón confirmado tras análisis continuo - Confianza: ${(confidence * 100).toFixed(1)}%`,
-        duration: 5000
-      });
-      
-      setTimeout(() => setDetectedSign(null), 4000);
-    }
-  }, [getSignByName]);
+  const detectSign = useCallback(async (confidence: number, sign: Sign) => {
+    detectionCountdownRef.current = 0; // Detener detección
+    detectionSamplesRef.current = []; // Limpiar muestras
+    
+    const detection: DetectionResult = {
+      sign,
+      confidence,
+      timestamp: new Date()
+    };
+    
+    setDetectedSign(detection);
+    console.log(`🎯 Seña "${sign.name}" detectada:`, detection);
+    
+    toast.success(`🎯 ¡SEÑA ${sign.name.toUpperCase()} DETECTADA!`, {
+      description: `Coincidencia confirmada - Confianza: ${(confidence * 100).toFixed(1)}%`,
+      duration: 4000
+    });
+    
+    setTimeout(() => setDetectedSign(null), 6000);
+  }, []);
 
-  // Iniciar detección con countdown de 15 segundos
+  // Iniciar detección
   const startDetection = useCallback(() => {
     if (!isModelLoaded) {
       toast.error('La cámara debe estar activa primero');
       return;
     }
     
+    if (signs.length === 0) {
+      toast.error('No hay señas guardadas en la base de datos para comparar');
+      return;
+    }
+    
     detectionCountdownRef.current = DETECTION_TIMEOUT;
-    detectionSamplesRef.current = []; // Limpiar muestras previas
+    detectionSamplesRef.current = [];
     lastDetectionRef.current = Date.now();
     
-    console.log('🚀 Iniciando detección de señas por 15 segundos');
+    console.log('🚀 Iniciando comparación con', signs.length, 'señas almacenadas');
     
-    toast.info('🔍 Iniciando detección avanzada de señas', {
-      description: 'Tienes 15 segundos - Haz las señas: OK 👌, PAZ ✌️, AMOR 💖',
+    toast.info('🔍 Iniciando detección de señas', {
+      description: `Comparando con ${signs.length} señas guardadas en la base de datos`,
       duration: 3000
     });
     
-    // Countdown visual cada segundo
-    const countdownInterval = setInterval(() => {
-      detectionCountdownRef.current -= 1000;
-      
-      const secondsLeft = Math.ceil(detectionCountdownRef.current / 1000);
-      
-      if (secondsLeft > 0 && secondsLeft % 5 === 0) {
-        console.log(`⏱️ ${secondsLeft} segundos restantes`);
-        toast.info(`⏱️ ${secondsLeft} segundos restantes`, {
-          description: 'Continúa haciendo la seña para mejor detección',
-          duration: 1500
-        });
-      }
-      
-      if (detectionCountdownRef.current <= 0) {
-        clearInterval(countdownInterval);
-        console.log('⏰ Tiempo de detección completado');
-        toast.info('⏰ Tiempo de detección completado');
-      }
-    }, 1000);
-    
-    // Auto-stop después de 15 segundos
+    // Auto-stop después de 10 segundos
     setTimeout(() => {
-      clearInterval(countdownInterval);
       detectionCountdownRef.current = 0;
       detectionSamplesRef.current = [];
     }, DETECTION_TIMEOUT);
-  }, [isModelLoaded]);
+  }, [isModelLoaded, signs]);
 
   // Dibujar en cada frame
   useEffect(() => {
