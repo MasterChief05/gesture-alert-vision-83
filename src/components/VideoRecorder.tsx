@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useCamera } from '@/hooks/useCamera';
 import { useHandpose } from '@/hooks/useHandpose';
 import { Button } from '@/components/ui/button';
@@ -16,12 +16,38 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
   const { predictions, isModelLoaded, modelError } = useHandpose(isStreaming ? videoRef.current : null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [cameraInitialized, setCameraInitialized] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const landmarksSequenceRef = useRef<number[][][]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingIntervalRef = useRef<number | null>(null);
+
+  // Auto-inicializar cámara al montar el componente
+  useEffect(() => {
+    const initializeSystem = async () => {
+      console.log('🔄 Inicializando sistema de grabación...');
+      try {
+        await startCamera();
+        setIsInitialized(true);
+        console.log('✅ Sistema inicializado correctamente');
+      } catch (error) {
+        console.error('❌ Error inicializando sistema:', error);
+        toast.error('Error al acceder a la cámara');
+      }
+    };
+
+    if (!isInitialized) {
+      initializeSystem();
+    }
+
+    return () => {
+      stopCamera();
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current);
+      }
+    };
+  }, [startCamera, stopCamera, isInitialized]);
 
   // Dibujar landmarks optimizado
   const drawLandmarks = useCallback(() => {
@@ -35,7 +61,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
     
     predictions.forEach((prediction) => {
       if (prediction.landmarks) {
-        // Conexiones simplificadas para mejor rendimiento
+        // Conexiones básicas
         const connections = [
           [0, 1], [1, 2], [2, 3], [3, 4], // Pulgar
           [0, 5], [5, 6], [6, 7], [7, 8], // Índice
@@ -44,7 +70,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
           [0, 17], [17, 18], [18, 19], [19, 20] // Meñique
         ];
         
-        // Dibujar líneas más eficientemente
+        // Dibujar líneas
         ctx.strokeStyle = '#10B981';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -78,41 +104,22 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
     });
   }, [predictions, isRecording]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isModelLoaded && !modelError) {
       drawLandmarks();
     }
   }, [predictions, isModelLoaded, modelError, drawLandmarks]);
 
-  const initializeCamera = useCallback(async () => {
-    if (!cameraInitialized) {
-      console.log('🎥 Inicializando cámara...');
-      try {
-        await startCamera();
-        setCameraInitialized(true);
-        console.log('✅ Cámara inicializada');
-      } catch (error) {
-        console.error('❌ Error inicializando cámara:', error);
-      }
-    }
-  }, [startCamera, cameraInitialized]);
-
   const startRecording = useCallback(async () => {
     console.log('🎬 Intentando iniciar grabación...');
-    console.log('Estado:', { isStreaming, isModelLoaded, modelError, cameraError });
     
     if (!isStreaming) {
-      toast.error('La cámara no está activa');
+      toast.error('La cámara no está activa. Esperando inicialización...');
       return;
     }
 
     if (!isModelLoaded) {
       toast.error('El modelo de detección aún se está cargando...');
-      return;
-    }
-
-    if (modelError) {
-      toast.error('Error en el modelo: ' + modelError);
       return;
     }
 
@@ -165,7 +172,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
       mediaRecorderRef.current.start(100);
       setIsRecording(true);
       
-      // Contador optimizado
+      // Contador de tiempo
       recordingIntervalRef.current = window.setInterval(() => {
         setRecordingTime(prev => {
           const newTime = prev + 1;
@@ -183,7 +190,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
       console.error('❌ Error iniciando grabación:', error);
       toast.error('Error al iniciar grabación: ' + (error as Error).message);
     }
-  }, [isStreaming, isModelLoaded, modelError, videoRef, onVideoRecorded]);
+  }, [isStreaming, isModelLoaded, videoRef, onVideoRecorded]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -197,44 +204,33 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
     }
   }, [isRecording]);
 
-  // Inicializar cámara al montar
-  React.useEffect(() => {
-    initializeCamera();
-    return () => {
-      stopCamera();
-      if (recordingIntervalRef.current) {
-        clearInterval(recordingIntervalRef.current);
-      }
-    };
-  }, [initializeCamera, stopCamera]);
-
-  // Estado del sistema optimizado
+  // Estado del sistema
   const getSystemStatus = () => {
     if (cameraError) return { 
       icon: AlertCircle, 
       color: 'text-red-500', 
-      text: 'Error de cámara',
+      text: 'Error de cámara: ' + cameraError,
       canRecord: false
     };
     
-    if (!cameraInitialized || !isStreaming) return { 
+    if (!isInitialized || !isStreaming) return { 
       icon: Camera, 
       color: 'text-yellow-500', 
-      text: 'Iniciando cámara...',
+      text: 'Inicializando cámara...',
       canRecord: false
     };
     
     if (modelError) return { 
       icon: AlertCircle, 
       color: 'text-red-500', 
-      text: 'Error del modelo',
+      text: 'Error del modelo: ' + modelError,
       canRecord: false
     };
     
     if (!isModelLoaded) return { 
       icon: AlertCircle, 
       color: 'text-blue-500', 
-      text: 'Cargando detección...',
+      text: 'Cargando detección de manos...',
       canRecord: false
     };
     
@@ -290,6 +286,15 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
               </div>
             </div>
           )}
+
+          {!isStreaming && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <div className="text-white text-center">
+                <Camera className="w-12 h-12 mx-auto mb-2 animate-pulse" />
+                <p>Iniciando cámara...</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -322,8 +327,6 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
         <p>🎯 Puntos rojos: articulaciones principales</p>
         <p>🟢 Puntos verdes: landmarks de dedos</p>
         <p>📹 Grabación automática de 5 segundos</p>
-        {cameraError && <p className="text-red-500">❌ {cameraError}</p>}
-        {modelError && <p className="text-red-500">❌ {modelError}</p>}
       </div>
     </div>
   );
