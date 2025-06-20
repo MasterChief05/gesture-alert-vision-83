@@ -1,4 +1,3 @@
-
 import { useRef, useEffect, useCallback, useState } from 'react';
 
 // Tipos para MediaPipe Hands
@@ -12,6 +11,13 @@ interface HandPrediction {
   annotations: {
     [key: string]: number[][];
   };
+}
+
+// Declarar tipos globales para MediaPipe
+declare global {
+  interface Window {
+    Hands: any;
+  }
 }
 
 export const useHandpose = (videoElement: HTMLVideoElement | null) => {
@@ -66,7 +72,6 @@ export const useHandpose = (videoElement: HTMLVideoElement | null) => {
   
   const initializeHands = async () => {
     try {
-      // @ts-ignore - MediaPipe se carga globalmente
       const { Hands } = window;
       
       if (!Hands) {
