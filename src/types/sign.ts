@@ -4,7 +4,7 @@ export interface Sign {
   name: string;
   description: string;
   videoUrl?: string;
-  landmarks?: number[][];
+  landmarks?: number[][][]; // Ahora es una secuencia de frames [frame][landmark][x,y,z]
   confidence: number;
   createdAt: Date;
 }

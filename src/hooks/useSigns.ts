@@ -21,26 +21,27 @@ export const useSigns = () => {
     }
   };
 
-  const addSign = async (signData: { name: string; description: string; imageFile?: File }) => {
+  const addSign = async (signData: { 
+    name: string; 
+    description: string; 
+    videoBlob: Blob;
+    landmarks: number[][][]
+  }) => {
     try {
-      let imageUrl = '';
-      
-      if (signData.imageFile) {
-        // Convertir archivo a base64 para almacenamiento local
-        imageUrl = await fileToBase64(signData.imageFile);
-      }
+      // Convertir video blob a base64 para almacenamiento
+      const videoUrl = await blobToBase64(signData.videoBlob);
 
       const newSign = await dbService.addSign({
         name: signData.name,
         description: signData.description,
-        videoUrl: imageUrl,
+        videoUrl: videoUrl,
         confidence: 1.0,
-        landmarks: [],
+        landmarks: signData.landmarks,
         createdAt: new Date()
       });
 
       setSigns(prev => [...prev, newSign]);
-      toast.success(`Seña "${newSign.name}" agregada correctamente`);
+      toast.success(`Seña "${newSign.name}" grabada con ${signData.landmarks.length} frames`);
       return newSign;
     } catch (error) {
       console.error('Error adding sign:', error);
@@ -83,10 +84,10 @@ export const useSigns = () => {
   };
 };
 
-const fileToBase64 = (file: File): Promise<string> => {
+const blobToBase64 = (blob: Blob): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = error => reject(error);
   });

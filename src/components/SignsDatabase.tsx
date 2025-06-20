@@ -1,25 +1,27 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { useSigns } from '@/hooks/useSigns';
+import { VideoRecorder } from '@/components/VideoRecorder';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Eye, Trash2, Plus, Upload, Loader2 } from 'lucide-react';
+import { Eye, Trash2, Plus, Video, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export const SignsDatabase: React.FC = () => {
   const { signs, loading, addSign, deleteSign } = useSigns();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showVideoRecorder, setShowVideoRecorder] = useState(false);
   const [newSign, setNewSign] = useState({
     name: '',
     description: '',
-    imageFile: null as File | null
+    videoBlob: null as Blob | null,
+    landmarks: [] as number[][][]
   });
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAddSign = async () => {
     if (!newSign.name.trim() || !newSign.description.trim()) {
@@ -27,8 +29,8 @@ export const SignsDatabase: React.FC = () => {
       return;
     }
 
-    if (!newSign.imageFile) {
-      toast.error('Por favor selecciona una imagen de la seña');
+    if (!newSign.videoBlob || newSign.landmarks.length === 0) {
+      toast.error('Por favor graba un video de la seña');
       return;
     }
 
@@ -36,10 +38,8 @@ export const SignsDatabase: React.FC = () => {
       setIsSubmitting(true);
       await addSign(newSign);
       setIsDialogOpen(false);
-      setNewSign({ name: '', description: '', imageFile: null });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      setShowVideoRecorder(false);
+      setNewSign({ name: '', description: '', videoBlob: null, landmarks: [] });
     } catch (error) {
       console.error('Error adding sign:', error);
     } finally {
@@ -47,16 +47,10 @@ export const SignsDatabase: React.FC = () => {
     }
   };
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (file.type.startsWith('image/')) {
-        setNewSign({ ...newSign, imageFile: file });
-      } else {
-        toast.error('Por favor selecciona un archivo de imagen válido');
-        event.target.value = '';
-      }
-    }
+  const handleVideoRecorded = (videoBlob: Blob, landmarks: number[][][]) => {
+    setNewSign({ ...newSign, videoBlob, landmarks });
+    setShowVideoRecorder(false);
+    toast.success(`Video grabado con ${landmarks.length} frames de landmarks`);
   };
 
   const handleDeleteSign = async (id: string, name: string) => {
@@ -79,7 +73,7 @@ export const SignsDatabase: React.FC = () => {
   return (
     <Card className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Base de Datos de Señas (IndexedDB)</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Base de Datos de Señas (Video + Landmarks)</h2>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="flex items-center space-x-2">
@@ -87,83 +81,84 @@ export const SignsDatabase: React.FC = () => {
               <span>Agregar Seña</span>
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
-              <DialogTitle>Agregar Nueva Seña de Manos</DialogTitle>
+              <DialogTitle>Grabar Nueva Seña con Landmarks</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <label htmlFor="name" className="text-sm font-medium">
-                  Nombre de la Seña
-                </label>
-                <Input
-                  id="name"
-                  value={newSign.name}
-                  onChange={(e) => setNewSign({ ...newSign, name: e.target.value })}
-                  placeholder="Ej: Hola, Amor, Paz"
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="description" className="text-sm font-medium">
-                  Descripción
-                </label>
-                <Textarea
-                  id="description"
-                  value={newSign.description}
-                  onChange={(e) => setNewSign({ ...newSign, description: e.target.value })}
-                  placeholder="Describe cómo hacer la seña..."
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="image" className="text-sm font-medium">
-                  Imagen de la Seña
-                </label>
-                <div className="flex gap-2">
+            
+            {!showVideoRecorder ? (
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <label htmlFor="name" className="text-sm font-medium">
+                    Nombre de la Seña
+                  </label>
                   <Input
-                    ref={fileInputRef}
-                    id="image"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileSelect}
-                    className="flex-1"
+                    id="name"
+                    value={newSign.name}
+                    onChange={(e) => setNewSign({ ...newSign, name: e.target.value })}
+                    placeholder="Ej: Hola, Amor, Paz"
                   />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="description" className="text-sm font-medium">
+                    Descripción
+                  </label>
+                  <Textarea
+                    id="description"
+                    value={newSign.description}
+                    onChange={(e) => setNewSign({ ...newSign, description: e.target.value })}
+                    placeholder="Describe cómo hacer la seña..."
+                  />
+                </div>
+                
+                {newSign.videoBlob && (
+                  <div className="mt-2 p-4 bg-green-50 rounded-lg border border-green-200">
+                    <div className="flex items-center space-x-2">
+                      <Video className="w-5 h-5 text-green-600" />
+                      <span className="text-green-800 font-medium">Video grabado exitosamente</span>
+                    </div>
+                    <p className="text-green-600 text-sm mt-1">
+                      {newSign.landmarks.length} frames con landmarks capturados
+                    </p>
+                  </div>
+                )}
+                
+                <div className="flex justify-between">
                   <Button 
                     variant="outline" 
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => setShowVideoRecorder(true)}
+                    className="flex items-center space-x-2"
                   >
-                    <Upload className="w-4 h-4" />
+                    <Video className="w-4 h-4" />
+                    <span>{newSign.videoBlob ? 'Grabar de Nuevo' : 'Grabar Video'}</span>
                   </Button>
+                  
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={handleAddSign} 
+                      disabled={isSubmitting || !newSign.videoBlob}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Guardando...
+                        </>
+                      ) : (
+                        'Guardar Seña'
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
-              {newSign.imageFile && (
-                <div className="mt-2">
-                  <img
-                    src={URL.createObjectURL(newSign.imageFile)}
-                    alt="Vista previa"
-                    className="w-full h-32 object-cover rounded-lg border-2 border-blue-200"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Archivo: {newSign.imageFile.name}
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleAddSign} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Guardando...
-                  </>
-                ) : (
-                  'Guardar Seña'
-                )}
-              </Button>
-            </div>
+            ) : (
+              <VideoRecorder
+                onVideoRecorded={handleVideoRecorded}
+                onCancel={() => setShowVideoRecorder(false)}
+              />
+            )}
           </DialogContent>
         </Dialog>
       </div>
@@ -171,19 +166,24 @@ export const SignsDatabase: React.FC = () => {
       <div className="grid gap-4">
         {signs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            <p>No hay señas guardadas. ¡Agrega tu primera seña!</p>
+            <Video className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p className="text-lg mb-2">No hay señas grabadas</p>
+            <p className="text-sm">¡Graba tu primera seña con landmarks!</p>
           </div>
         ) : (
           signs.map((sign) => (
-            <Card key={sign.id} className="p-4 border-l-4 border-l-green-500">
+            <Card key={sign.id} className="p-4 border-l-4 border-l-blue-500">
               <div className="flex items-center justify-between">
                 <div className="flex gap-4 flex-1">
                   {sign.videoUrl && (
                     <div className="flex-shrink-0">
-                      <img
+                      <video
                         src={sign.videoUrl}
-                        alt={sign.name}
                         className="w-20 h-20 object-cover rounded-lg border-2 border-gray-200"
+                        muted
+                        loop
+                        onMouseEnter={(e) => e.currentTarget.play()}
+                        onMouseLeave={(e) => e.currentTarget.pause()}
                       />
                     </div>
                   )}
@@ -197,8 +197,11 @@ export const SignsDatabase: React.FC = () => {
                       <Badge variant="outline" className="text-xs">
                         {sign.createdAt.toLocaleDateString()}
                       </Badge>
+                      <Badge variant="default" className="text-xs bg-blue-100 text-blue-800">
+                        {sign.landmarks?.length || 0} frames
+                      </Badge>
                       <Badge variant="default" className="text-xs bg-green-100 text-green-800">
-                        Local
+                        Video + Landmarks
                       </Badge>
                     </div>
                   </div>

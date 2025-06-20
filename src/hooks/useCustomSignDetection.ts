@@ -17,12 +17,19 @@ export const useCustomSignDetection = () => {
     // Comparar con cada seña almacenada
     for (const sign of storedSigns) {
       if (sign.landmarks && sign.landmarks.length > 0) {
-        const similarity = compareHandLandmarks(landmarks, sign.landmarks);
-        console.log(`📊 Similitud con "${sign.name}":`, similarity.toFixed(3));
+        // Comparar con cada frame de la secuencia grabada
+        let maxSimilarity = 0;
         
-        if (similarity > bestMatch.confidence) {
+        for (const frameData of sign.landmarks) {
+          const similarity = compareHandLandmarks(landmarks, frameData);
+          maxSimilarity = Math.max(maxSimilarity, similarity);
+        }
+        
+        console.log(`📊 Similitud máxima con "${sign.name}":`, maxSimilarity.toFixed(3));
+        
+        if (maxSimilarity > bestMatch.confidence) {
           bestMatch = {
-            confidence: similarity,
+            confidence: maxSimilarity,
             signName: sign.name,
             matchedSign: sign
           };
@@ -30,8 +37,8 @@ export const useCustomSignDetection = () => {
       }
     }
     
-    // Solo retornar detección si la confianza es suficientemente alta
-    if (bestMatch.confidence > 0.7) {
+    // Umbral más estricto para secuencias
+    if (bestMatch.confidence > 0.75) {
       console.log(`✅ Seña detectada: ${bestMatch.signName} con ${(bestMatch.confidence * 100).toFixed(1)}% de confianza`);
       return { 
         detected: true, 

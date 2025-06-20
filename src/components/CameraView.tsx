@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useCamera } from '@/hooks/useCamera';
 import { useSignDetection } from '@/hooks/useSignDetection';
@@ -62,7 +61,7 @@ export const CameraView: React.FC = () => {
 
       <Card className="p-6 bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="flex flex-col items-center space-y-4">
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">Detección de Señas Personalizada</h2>
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">Detección con Puntos de Referencia</h2>
           
           <div className="relative w-full max-w-lg">
             <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden border-4 border-blue-200 shadow-lg relative">
@@ -140,10 +139,16 @@ export const CameraView: React.FC = () => {
           {isStreaming && !isDetectionActive && (
             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200 text-center">
               <p className="text-blue-700 text-sm font-medium mb-2">
-                🎯 Sistema de comparación con base de datos activado
+                🎯 Sistema con puntos de referencia activado
+              </p>
+              <p className="text-blue-600 text-xs mb-2">
+                • Puntos rojos = Articulaciones principales (muñeca, nudillos)
+              </p>
+              <p className="text-blue-600 text-xs mb-2">
+                • Puntos verdes = Landmarks de dedos
               </p>
               <p className="text-blue-600 text-xs">
-                Presiona "Comparar Señas" para iniciar la comparación con las señas guardadas en tu base de datos
+                • Líneas verdes = Conexiones entre articulaciones
               </p>
             </div>
           )}
