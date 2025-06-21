@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useCamera } from '@/hooks/useCamera';
 import { useSignDetection } from '@/hooks/useSignDetection';
@@ -109,23 +110,27 @@ export const CameraView: React.FC = () => {
         />
       )}
 
-      <div className="w-full min-h-screen p-1 sm:p-2 lg:p-4">
-        <div className="w-full max-w-none mx-auto space-y-2 sm:space-y-4">
+      <div className="w-full min-h-screen p-2 sm:p-4 md:p-6 lg:p-8">
+        <div className="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6">
           <div className="text-center px-2">
-            <h2 className="text-base sm:text-lg lg:text-xl font-bold text-gray-800 mb-2">
+            <h2 className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold text-gray-800 mb-2 sm:mb-4">
               Detección con Puntos de Referencia
             </h2>
           </div>
           
-          {/* Área de video más grande */}
+          {/* Área de video completamente responsiva */}
           <div className="relative w-full">
-            <div className="w-full bg-gray-900 rounded-lg overflow-hidden border border-blue-200 shadow-lg relative" 
-                 style={{ aspectRatio: isMobile ? '16/12' : '16/9', minHeight: isMobile ? '400px' : '500px' }}>
+            <div className="w-full bg-gray-900 rounded-lg sm:rounded-xl overflow-hidden border-2 border-blue-200 shadow-xl relative" 
+                 style={{ 
+                   aspectRatio: '16/9',
+                   minHeight: '300px',
+                   height: 'clamp(300px, 70vh, 800px)'
+                 }}>
               {error ? (
                 <div className="flex items-center justify-center h-full text-red-500">
-                  <div className="text-center p-4">
-                    <AlertCircle className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-2" />
-                    <p className="text-sm sm:text-base">{error}</p>
+                  <div className="text-center p-4 sm:p-6">
+                    <AlertCircle className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 mx-auto mb-4" />
+                    <p className="text-sm sm:text-base md:text-lg">{error}</p>
                   </div>
                 </div>
               ) : (
@@ -146,33 +151,33 @@ export const CameraView: React.FC = () => {
                 </>
               )}
 
-              {/* Botón para cambiar cámara */}
+              {/* Botón para cambiar cámara - responsivo */}
               {isStreaming && !isDetectionActive && (
                 <button
                   onClick={switchCamera}
-                  className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-black/60 text-white p-2 sm:p-3 rounded-full hover:bg-black/80 transition-colors backdrop-blur-sm"
+                  className="absolute top-2 right-2 sm:top-4 sm:right-4 md:top-6 md:right-6 bg-black/70 text-white p-2 sm:p-3 md:p-4 rounded-full hover:bg-black/90 transition-colors backdrop-blur-sm shadow-lg"
                   title={`Cambiar a cámara ${facingMode === 'user' ? 'trasera' : 'frontal'}`}
                 >
-                  <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                 </button>
               )}
 
-              {/* Indicador de cámara activa */}
+              {/* Indicador de cámara activa - responsivo */}
               {isStreaming && !isDetectionActive && (
-                <div className="absolute top-2 left-2 sm:top-3 sm:left-3">
-                  <div className="bg-green-500 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-lg text-sm font-semibold backdrop-blur-sm">
+                <div className="absolute top-2 left-2 sm:top-4 sm:left-4 md:top-6 md:left-6">
+                  <div className="bg-green-500 text-white px-2 py-1 sm:px-3 sm:py-2 md:px-4 md:py-2 rounded-lg text-xs sm:text-sm md:text-base font-semibold backdrop-blur-sm shadow-lg">
                     📷 {facingMode === 'user' ? 'Frontal' : 'Trasera'}
                   </div>
                 </div>
               )}
 
-              {/* Indicador de detección activa */}
+              {/* Indicador de detección activa - completamente responsivo */}
               {isDetectionActive && (
-                <div className="absolute top-2 left-2 right-2 sm:top-3 sm:left-3 sm:right-3">
-                  <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-3 py-2 sm:px-4 sm:py-3 rounded-lg text-center font-bold animate-pulse backdrop-blur-sm">
+                <div className="absolute top-2 left-2 right-2 sm:top-4 sm:left-4 sm:right-4 md:top-6 md:left-6 md:right-6">
+                  <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-3 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 rounded-lg text-center font-bold animate-pulse backdrop-blur-sm shadow-lg">
                     <div className="flex items-center justify-center space-x-2">
-                      <Timer className="w-4 h-4 sm:w-5 sm:h-5" />
-                      <span className="text-sm sm:text-base">🔍 COMPARANDO - {timeRemaining}s</span>
+                      <Timer className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
+                      <span className="text-sm sm:text-base md:text-lg">🔍 COMPARANDO - {timeRemaining}s</span>
                     </div>
                   </div>
                 </div>
@@ -180,14 +185,14 @@ export const CameraView: React.FC = () => {
             </div>
           </div>
 
-          {/* Botones más grandes y responsive */}
-          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full px-2">
+          {/* Botones completamente responsivos */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 md:gap-6 w-full px-2">
             <Button
               onClick={handleToggleCamera}
               variant={isStreaming ? "destructive" : "default"}
-              className="flex items-center justify-center space-x-2 px-6 py-3 sm:px-8 sm:py-4 w-full sm:w-auto text-base sm:text-lg font-semibold h-12 sm:h-14"
+              className="flex items-center justify-center space-x-2 px-4 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 w-full sm:w-auto text-sm sm:text-base md:text-lg font-semibold h-12 sm:h-14 md:h-16"
             >
-              {isStreaming ? <CameraOff className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+              {isStreaming ? <CameraOff className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" /> : <Camera className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />}
               <span>{isStreaming ? 'Detener Cámara' : 'Iniciar Cámara'}</span>
             </Button>
 
@@ -196,9 +201,9 @@ export const CameraView: React.FC = () => {
                 onClick={handleStartDetection}
                 disabled={isDetectionActive}
                 variant="secondary"
-                className="flex items-center justify-center space-x-2 px-6 py-3 sm:px-8 sm:py-4 w-full sm:w-auto text-base sm:text-lg font-semibold h-12 sm:h-14"
+                className="flex items-center justify-center space-x-2 px-4 py-3 sm:px-6 sm:py-4 md:px-8 md:py-5 w-full sm:w-auto text-sm sm:text-base md:text-lg font-semibold h-12 sm:h-14 md:h-16"
               >
-                <Search className="w-5 h-5" />
+                <Search className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6" />
                 <span className="text-center">
                   {isDetectionActive ? `Comparando... ${timeRemaining}s` : 'Comparar Señas (10s)'}
                 </span>
@@ -206,13 +211,13 @@ export const CameraView: React.FC = () => {
             )}
           </div>
 
-          {/* Información responsive */}
+          {/* Información completamente responsiva */}
           {isStreaming && !isDetectionActive && (
-            <div className="mt-4 p-4 sm:p-6 bg-blue-50 rounded-lg border border-blue-200 text-center w-full mx-2">
-              <p className="text-blue-700 text-base font-medium mb-3">
+            <div className="mt-4 sm:mt-6 p-4 sm:p-6 md:p-8 bg-blue-50 rounded-lg sm:rounded-xl border border-blue-200 text-center w-full">
+              <p className="text-blue-700 text-sm sm:text-base md:text-lg font-medium mb-3 sm:mb-4">
                 🎯 Sistema con puntos de referencia activado
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 text-xs sm:text-sm md:text-base">
                 <p className="text-blue-600">• Puntos rojos = Articulaciones principales</p>
                 <p className="text-blue-600">• Puntos verdes = Landmarks de dedos</p>
                 <p className="text-blue-600">• Líneas verdes = Conexiones</p>
@@ -222,16 +227,16 @@ export const CameraView: React.FC = () => {
           )}
 
           {isDetectionActive && (
-            <div className="mt-4 p-4 sm:p-6 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 text-center w-full mx-2">
-              <p className="text-red-700 text-base font-medium mb-2">
+            <div className="mt-4 sm:mt-6 p-4 sm:p-6 md:p-8 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg sm:rounded-xl border border-red-200 text-center w-full">
+              <p className="text-red-700 text-sm sm:text-base md:text-lg font-medium mb-2 sm:mb-3">
                 🔥 Comparando con señas almacenadas - {timeRemaining} segundos restantes
               </p>
-              <p className="text-red-600 text-sm mb-3">
+              <p className="text-red-600 text-xs sm:text-sm md:text-base mb-3 sm:mb-4">
                 El sistema está comparando tu seña con las grabadas en la base de datos
               </p>
-              <div className="bg-red-100 rounded-full h-3">
+              <div className="bg-red-100 rounded-full h-2 sm:h-3 md:h-4">
                 <div 
-                  className="bg-red-500 h-3 rounded-full transition-all duration-1000"
+                  className="bg-red-500 h-2 sm:h-3 md:h-4 rounded-full transition-all duration-1000"
                   style={{ width: `${(timeRemaining / 10) * 100}%` }}
                 ></div>
               </div>
