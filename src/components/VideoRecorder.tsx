@@ -4,6 +4,7 @@ import { useHandpose } from '@/hooks/useHandpose';
 import { Button } from '@/components/ui/button';
 import { Video, Square, AlertCircle, CheckCircle, Camera, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface VideoRecorderProps {
   onVideoRecorded: (videoBlob: Blob, landmarks: number[][][]) => void;
@@ -21,6 +22,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
   const landmarksSequenceRef = useRef<number[][][]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingIntervalRef = useRef<number | null>(null);
+  const isMobile = useIsMobile();
 
   // Función para cambiar de cámara
   const switchCamera = useCallback(async () => {
@@ -276,108 +278,118 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
   const StatusIcon = status.icon;
 
   return (
-    <div className="space-y-4">
-      {/* Estado del sistema */}
-      <div className="text-center">
-        <div className={`flex items-center justify-center space-x-2 ${status.color}`}>
-          <StatusIcon className="w-5 h-5" />
-          <span className="font-medium">{status.text}</span>
+    <div className="w-full min-h-screen p-2 sm:p-4">
+      <div className="max-w-none sm:max-w-2xl lg:max-w-4xl mx-auto space-y-3 sm:space-y-4">
+        {/* Estado del sistema - responsive */}
+        <div className="text-center px-2">
+          <div className={`flex items-center justify-center space-x-2 ${status.color}`}>
+            <StatusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="font-medium text-sm sm:text-base">{status.text}</span>
+          </div>
+          {predictions.length > 0 && (
+            <p className="text-xs sm:text-sm text-green-600 mt-1">
+              ✋ Mano detectada ({predictions[0].landmarks?.length || 0} puntos)
+            </p>
+          )}
         </div>
-        {predictions.length > 0 && (
-          <p className="text-sm text-green-600 mt-1">
-            ✋ Mano detectada ({predictions[0].landmarks?.length || 0} puntos)
-          </p>
-        )}
-      </div>
 
-      <div className="relative w-full max-w-lg mx-auto">
-        <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden border-4 border-blue-200 shadow-lg relative">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
-          <canvas
-            ref={canvasRef}
-            width={640}
-            height={480}
-            className="absolute top-0 left-0 w-full h-full object-cover"
-          />
-          
-          {/* Botón para cambiar cámara */}
-          {isStreaming && !isRecording && (
-            <button
-              onClick={switchCamera}
-              className="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
-              title={`Cambiar a cámara ${facingMode === 'user' ? 'trasera' : 'frontal'}`}
+        {/* Video container - optimizado para móvil */}
+        <div className="relative w-full">
+          <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden border-2 sm:border-4 border-blue-200 shadow-lg relative">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-cover"
+            />
+            <canvas
+              ref={canvasRef}
+              width={640}
+              height={480}
+              className="absolute top-0 left-0 w-full h-full object-cover"
+            />
+            
+            {/* Botón para cambiar cámara - responsive */}
+            {isStreaming && !isRecording && (
+              <button
+                onClick={switchCamera}
+                className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-black/50 text-white p-1.5 sm:p-2 rounded-full hover:bg-black/70 transition-colors"
+                title={`Cambiar a cámara ${facingMode === 'user' ? 'trasera' : 'frontal'}`}
+              >
+                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            )}
+
+            {/* Indicador de cámara activa - responsive */}
+            {isStreaming && (
+              <div className="absolute top-1 left-1 sm:top-2 sm:left-2">
+                <div className="bg-green-500 text-white px-2 py-0.5 sm:px-2 sm:py-1 rounded text-xs font-semibold">
+                  📷 {facingMode === 'user' ? 'Frontal' : 'Trasera'}
+                </div>
+              </div>
+            )}
+            
+            {/* Indicador de grabación - responsive */}
+            {isRecording && (
+              <div className="absolute top-8 left-1 right-1 sm:top-12 sm:left-2 sm:right-2">
+                <div className="bg-red-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg text-center font-bold animate-pulse">
+                  <span className="text-xs sm:text-sm">🔴 GRABANDO - {5 - recordingTime}s</span>
+                </div>
+                <div className="bg-black/50 text-white px-2 py-0.5 sm:px-2 sm:py-1 rounded text-xs text-center mt-1">
+                  Frames: {landmarksSequenceRef.current.length}
+                </div>
+              </div>
+            )}
+
+            {!isStreaming && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <div className="text-white text-center p-4">
+                  <Camera className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 animate-pulse" />
+                  <p className="text-sm sm:text-base">Inicializando cámara...</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Botones responsive */}
+        <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-4 px-2">
+          {!isRecording ? (
+            <Button
+              onClick={startRecording}
+              disabled={!status.canRecord}
+              className="flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base"
             >
-              <RotateCcw className="w-5 h-5" />
-            </button>
-          )}
-
-          {/* Indicador de cámara activa */}
-          {isStreaming && (
-            <div className="absolute top-2 left-2">
-              <div className="bg-green-500 text-white px-2 py-1 rounded text-xs font-semibold">
-                📷 {facingMode === 'user' ? 'Frontal' : 'Trasera'}
-              </div>
-            </div>
+              <Video className="w-4 h-4" />
+              <span>Grabar Seña (5s)</span>
+            </Button>
+          ) : (
+            <Button
+              onClick={stopRecording}
+              className="flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-700 w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base"
+            >
+              <Square className="w-4 h-4" />
+              <span>Detener</span>
+            </Button>
           )}
           
-          {isRecording && (
-            <div className="absolute top-12 left-2 right-2">
-              <div className="bg-red-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-pulse">
-                🔴 GRABANDO - {5 - recordingTime}s
-              </div>
-              <div className="bg-black/50 text-white px-2 py-1 rounded text-xs text-center mt-1">
-                Frames: {landmarksSequenceRef.current.length}
-              </div>
-            </div>
-          )}
-
-          {!isStreaming && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <div className="text-white text-center">
-                <Camera className="w-12 h-12 mx-auto mb-2 animate-pulse" />
-                <p>Inicializando cámara...</p>
-              </div>
-            </div>
-          )}
+          <Button 
+            variant="outline" 
+            onClick={onCancel}
+            className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base"
+          >
+            Cancelar
+          </Button>
         </div>
-      </div>
 
-      <div className="flex justify-center space-x-4">
-        {!isRecording ? (
-          <Button
-            onClick={startRecording}
-            disabled={!status.canRecord}
-            className="flex items-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            <Video className="w-4 h-4" />
-            <span>Grabar Seña (5s)</span>
-          </Button>
-        ) : (
-          <Button
-            onClick={stopRecording}
-            className="flex items-center space-x-2 bg-gray-600 hover:bg-gray-700"
-          >
-            <Square className="w-4 h-4" />
-            <span>Detener</span>
-          </Button>
-        )}
-        
-        <Button variant="outline" onClick={onCancel}>
-          Cancelar
-        </Button>
-      </div>
-
-      <div className="text-center text-sm text-gray-600">
-        <p>🎯 Puntos rojos: articulaciones principales</p>
-        <p>🟢 Puntos verdes: landmarks de dedos</p>
-        <p>📹 Grabación automática de 5 segundos</p>
-        <p>🔄 Toca el botón superior derecho para cambiar de cámara</p>
+        {/* Información responsive */}
+        <div className="text-center text-xs sm:text-sm text-gray-600 px-2 space-y-1">
+          <p>🎯 Puntos rojos: articulaciones principales</p>
+          <p>🟢 Puntos verdes: landmarks de dedos</p>
+          <p>📹 Grabación automática de 5 segundos</p>
+          <p>🔄 Botón superior derecho para cambiar de cámara</p>
+        </div>
       </div>
     </div>
   );
