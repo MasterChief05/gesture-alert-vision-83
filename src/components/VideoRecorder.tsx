@@ -1,9 +1,8 @@
-
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useCamera } from '@/hooks/useCamera';
 import { useHandpose } from '@/hooks/useHandpose';
 import { Button } from '@/components/ui/button';
-import { Video, Square, AlertCircle, CheckCircle, Camera } from 'lucide-react';
+import { Video, Square, AlertCircle, CheckCircle, Camera, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface VideoRecorderProps {
@@ -16,11 +15,59 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
   const { predictions, isModelLoaded, modelError } = useHandpose(isStreaming ? videoRef.current : null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const landmarksSequenceRef = useRef<number[][][]>([]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingIntervalRef = useRef<number | null>(null);
+
+  // Función para cambiar de cámara
+  const switchCamera = useCallback(async () => {
+    if (isRecording) {
+      toast.warning('No se puede cambiar de cámara mientras se está grabando');
+      return;
+    }
+
+    console.log(`🔄 Cambiando cámara de ${facingMode} a ${facingMode === 'user' ? 'environment' : 'user'}`);
+    
+    // Detener cámara actual
+    stopCamera();
+    
+    // Cambiar modo
+    const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(newFacingMode);
+    
+    // Esperar un poco antes de reiniciar
+    setTimeout(async () => {
+      try {
+        // Configuración específica para la nueva cámara
+        const constraints = {
+          video: {
+            width: { ideal: 640, max: 640 },
+            height: { ideal: 480, max: 480 },
+            facingMode: newFacingMode,
+            frameRate: { ideal: 30, max: 30 }
+          },
+          audio: false
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          console.log(`✅ Cámara ${newFacingMode === 'user' ? 'frontal' : 'trasera'} activada`);
+          toast.success(`Cámara ${newFacingMode === 'user' ? 'frontal' : 'trasera'} activada`);
+        }
+      } catch (error) {
+        console.error('❌ Error al cambiar cámara:', error);
+        toast.error('Error al cambiar de cámara. Volviendo a la anterior...');
+        // Volver a la cámara anterior si falla
+        setFacingMode(facingMode);
+        startCamera();
+      }
+    }, 500);
+  }, [facingMode, isRecording, stopCamera, startCamera]);
 
   // Inicializar cámara cuando el componente se monta
   useEffect(() => {
@@ -259,8 +306,28 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
             className="absolute top-0 left-0 w-full h-full object-cover"
           />
           
+          {/* Botón para cambiar cámara */}
+          {isStreaming && !isRecording && (
+            <button
+              onClick={switchCamera}
+              className="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+              title={`Cambiar a cámara ${facingMode === 'user' ? 'trasera' : 'frontal'}`}
+            >
+              <RotateCcw className="w-5 h-5" />
+            </button>
+          )}
+
+          {/* Indicador de cámara activa */}
+          {isStreaming && (
+            <div className="absolute top-2 left-2">
+              <div className="bg-green-500 text-white px-2 py-1 rounded text-xs font-semibold">
+                📷 {facingMode === 'user' ? 'Frontal' : 'Trasera'}
+              </div>
+            </div>
+          )}
+          
           {isRecording && (
-            <div className="absolute top-2 left-2 right-2">
+            <div className="absolute top-12 left-2 right-2">
               <div className="bg-red-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-pulse">
                 🔴 GRABANDO - {5 - recordingTime}s
               </div>
@@ -310,6 +377,7 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
         <p>🎯 Puntos rojos: articulaciones principales</p>
         <p>🟢 Puntos verdes: landmarks de dedos</p>
         <p>📹 Grabación automática de 5 segundos</p>
+        <p>🔄 Toca el botón superior derecho para cambiar de cámara</p>
       </div>
     </div>
   );
