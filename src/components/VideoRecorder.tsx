@@ -278,24 +278,25 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
   const StatusIcon = status.icon;
 
   return (
-    <div className="w-full min-h-screen p-2 sm:p-4">
-      <div className="max-w-none sm:max-w-2xl lg:max-w-4xl mx-auto space-y-3 sm:space-y-4">
-        {/* Estado del sistema - responsive */}
+    <div className="w-full min-h-screen p-1 sm:p-2">
+      <div className="max-w-none mx-auto space-y-3 sm:space-y-4">
+        {/* Estado del sistema */}
         <div className="text-center px-2">
-          <div className={`flex items-center justify-center space-x-2 ${status.color}`}>
-            <StatusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="font-medium text-sm sm:text-base">{status.text}</span>
+          <div className={`flex items-center justify-center space-x-2 ${status.color} mb-2`}>
+            <StatusIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+            <span className="font-medium text-base sm:text-lg">{status.text}</span>
           </div>
           {predictions.length > 0 && (
-            <p className="text-xs sm:text-sm text-green-600 mt-1">
+            <p className="text-sm sm:text-base text-green-600">
               ✋ Mano detectada ({predictions[0].landmarks?.length || 0} puntos)
             </p>
           )}
         </div>
 
-        {/* Video container - optimizado para móvil */}
+        {/* Video container más grande */}
         <div className="relative w-full">
-          <div className="aspect-video bg-gray-900 rounded-lg overflow-hidden border-2 sm:border-4 border-blue-200 shadow-lg relative">
+          <div className="w-full bg-gray-900 rounded-lg overflow-hidden border border-blue-200 shadow-lg relative"
+               style={{ aspectRatio: isMobile ? '16/12' : '16/9', minHeight: isMobile ? '400px' : '500px' }}>
             <video
               ref={videoRef}
               autoPlay
@@ -310,33 +311,33 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
               className="absolute top-0 left-0 w-full h-full object-cover"
             />
             
-            {/* Botón para cambiar cámara - responsive */}
+            {/* Botón para cambiar cámara */}
             {isStreaming && !isRecording && (
               <button
                 onClick={switchCamera}
-                className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-black/50 text-white p-1.5 sm:p-2 rounded-full hover:bg-black/70 transition-colors"
+                className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-black/60 text-white p-2 sm:p-3 rounded-full hover:bg-black/80 transition-colors backdrop-blur-sm"
                 title={`Cambiar a cámara ${facingMode === 'user' ? 'trasera' : 'frontal'}`}
               >
-                <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+                <RotateCcw className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             )}
 
-            {/* Indicador de cámara activa - responsive */}
+            {/* Indicador de cámara activa */}
             {isStreaming && (
-              <div className="absolute top-1 left-1 sm:top-2 sm:left-2">
-                <div className="bg-green-500 text-white px-2 py-0.5 sm:px-2 sm:py-1 rounded text-xs font-semibold">
+              <div className="absolute top-2 left-2 sm:top-3 sm:left-3">
+                <div className="bg-green-500 text-white px-3 py-1 sm:px-4 sm:py-2 rounded-lg text-sm font-semibold backdrop-blur-sm">
                   📷 {facingMode === 'user' ? 'Frontal' : 'Trasera'}
                 </div>
               </div>
             )}
             
-            {/* Indicador de grabación - responsive */}
+            {/* Indicador de grabación */}
             {isRecording && (
-              <div className="absolute top-8 left-1 right-1 sm:top-12 sm:left-2 sm:right-2">
-                <div className="bg-red-600 text-white px-2 py-1 sm:px-4 sm:py-2 rounded-lg text-center font-bold animate-pulse">
-                  <span className="text-xs sm:text-sm">🔴 GRABANDO - {5 - recordingTime}s</span>
+              <div className="absolute top-12 left-2 right-2 sm:top-16 sm:left-3 sm:right-3">
+                <div className="bg-red-600 text-white px-3 py-2 sm:px-4 sm:py-3 rounded-lg text-center font-bold animate-pulse backdrop-blur-sm">
+                  <span className="text-sm sm:text-base">🔴 GRABANDO - {5 - recordingTime}s</span>
                 </div>
-                <div className="bg-black/50 text-white px-2 py-0.5 sm:px-2 sm:py-1 rounded text-xs text-center mt-1">
+                <div className="bg-black/60 text-white px-3 py-1 sm:px-3 sm:py-2 rounded text-sm text-center mt-2 backdrop-blur-sm">
                   Frames: {landmarksSequenceRef.current.length}
                 </div>
               </div>
@@ -344,32 +345,32 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
 
             {!isStreaming && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                <div className="text-white text-center p-4">
-                  <Camera className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-2 animate-pulse" />
-                  <p className="text-sm sm:text-base">Inicializando cámara...</p>
+                <div className="text-white text-center p-6">
+                  <Camera className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-4 animate-pulse" />
+                  <p className="text-base sm:text-lg">Inicializando cámara...</p>
                 </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Botones responsive */}
-        <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-4 px-2">
+        {/* Botones más grandes y responsive */}
+        <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 px-2">
           {!isRecording ? (
             <Button
               onClick={startRecording}
               disabled={!status.canRecord}
-              className="flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base"
+              className="flex items-center justify-center space-x-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 text-base sm:text-lg font-semibold h-12 sm:h-14"
             >
-              <Video className="w-4 h-4" />
+              <Video className="w-5 h-5" />
               <span>Grabar Seña (5s)</span>
             </Button>
           ) : (
             <Button
               onClick={stopRecording}
-              className="flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-700 w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base"
+              className="flex items-center justify-center space-x-2 bg-gray-600 hover:bg-gray-700 w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 text-base sm:text-lg font-semibold h-12 sm:h-14"
             >
-              <Square className="w-4 h-4" />
+              <Square className="w-5 h-5" />
               <span>Detener</span>
             </Button>
           )}
@@ -377,18 +378,21 @@ export const VideoRecorder: React.FC<VideoRecorderProps> = ({ onVideoRecorded, o
           <Button 
             variant="outline" 
             onClick={onCancel}
-            className="w-full sm:w-auto px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base"
+            className="w-full sm:w-auto px-6 py-3 sm:px-8 sm:py-4 text-base sm:text-lg font-semibold h-12 sm:h-14"
           >
             Cancelar
           </Button>
         </div>
 
-        {/* Información responsive */}
-        <div className="text-center text-xs sm:text-sm text-gray-600 px-2 space-y-1">
-          <p>🎯 Puntos rojos: articulaciones principales</p>
-          <p>🟢 Puntos verdes: landmarks de dedos</p>
-          <p>📹 Grabación automática de 5 segundos</p>
-          <p>🔄 Botón superior derecho para cambiar de cámara</p>
+        {/* Información */}
+        <div className="text-center text-sm sm:text-base text-gray-600 px-2 space-y-2 bg-blue-50 p-4 rounded-lg">
+          <p className="font-medium text-blue-700 mb-2">📋 Instrucciones:</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm">
+            <p>🎯 Puntos rojos: articulaciones principales</p>
+            <p>🟢 Puntos verdes: landmarks de dedos</p>
+            <p>📹 Grabación automática de 5 segundos</p>
+            <p>🔄 Botón superior derecho para cambiar cámara</p>
+          </div>
         </div>
       </div>
     </div>
