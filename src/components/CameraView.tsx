@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { useCamera } from '@/hooks/useCamera';
 import { useSignDetection } from '@/hooks/useSignDetection';
 import { SignAlert } from '@/components/SignAlert';
 import { Card } from '@/components/ui/card';
-import { Camera, CameraOff, AlertCircle, Hand, Timer, Search } from 'lucide-react';
+import { Camera, CameraOff, AlertCircle, Hand, Timer, Search, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -14,6 +15,54 @@ export const CameraView: React.FC = () => {
   );
 
   const [showAlert, setShowAlert] = useState(false);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+
+  // Función para cambiar de cámara
+  const switchCamera = useCallback(async () => {
+    if (isDetectionActive) {
+      toast.warning('No se puede cambiar de cámara durante la detección');
+      return;
+    }
+
+    console.log(`🔄 Cambiando cámara de ${facingMode} a ${facingMode === 'user' ? 'environment' : 'user'}`);
+    
+    // Detener cámara actual
+    stopCamera();
+    
+    // Cambiar modo
+    const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(newFacingMode);
+    
+    // Esperar un poco antes de reiniciar
+    setTimeout(async () => {
+      try {
+        // Configuración específica para la nueva cámara
+        const constraints = {
+          video: {
+            width: { ideal: 640, max: 640 },
+            height: { ideal: 480, max: 480 },
+            facingMode: newFacingMode,
+            frameRate: { ideal: 30, max: 30 }
+          },
+          audio: false
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          console.log(`✅ Cámara ${newFacingMode === 'user' ? 'frontal' : 'trasera'} activada`);
+          toast.success(`Cámara ${newFacingMode === 'user' ? 'frontal' : 'trasera'} activada`);
+        }
+      } catch (error) {
+        console.error('❌ Error al cambiar cámara:', error);
+        toast.error('Error al cambiar de cámara. Volviendo a la anterior...');
+        // Volver a la cámara anterior si falla
+        setFacingMode(facingMode);
+        startCamera();
+      }
+    }, 500);
+  }, [facingMode, isDetectionActive, stopCamera, startCamera]);
 
   // Mostrar alerta cuando se detecta una seña
   useEffect(() => {
@@ -89,26 +138,38 @@ export const CameraView: React.FC = () => {
                   />
                 </>
               )}
-            </div>
-            
-            {isStreaming && !isDetectionActive && (
-              <div className="absolute top-2 right-2">
-                <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold animate-pulse">
-                  🟢 CÁMARA ACTIVA
-                </div>
-              </div>
-            )}
 
-            {isDetectionActive && (
-              <div className="absolute top-2 left-2 right-2">
-                <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-pulse">
-                  <div className="flex items-center justify-center space-x-2">
-                    <Timer className="w-4 h-4" />
-                    <span>🔍 COMPARANDO CON BASE DE DATOS - {timeRemaining}s</span>
+              {/* Botón para cambiar cámara */}
+              {isStreaming && !isDetectionActive && (
+                <button
+                  onClick={switchCamera}
+                  className="absolute top-2 right-2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                  title={`Cambiar a cámara ${facingMode === 'user' ? 'trasera' : 'frontal'}`}
+                >
+                  <RotateCcw className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Indicador de cámara activa */}
+              {isStreaming && !isDetectionActive && (
+                <div className="absolute top-2 left-2">
+                  <div className="bg-green-500 text-white px-3 py-1 rounded text-xs font-semibold">
+                    📷 {facingMode === 'user' ? 'Frontal' : 'Trasera'}
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {isDetectionActive && (
+                <div className="absolute top-2 left-2 right-2">
+                  <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white px-4 py-2 rounded-lg text-center font-bold animate-pulse">
+                    <div className="flex items-center justify-center space-x-2">
+                      <Timer className="w-4 h-4" />
+                      <span>🔍 COMPARANDO CON BASE DE DATOS - {timeRemaining}s</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex space-x-4">
@@ -147,8 +208,11 @@ export const CameraView: React.FC = () => {
               <p className="text-blue-600 text-xs mb-2">
                 • Puntos verdes = Landmarks de dedos
               </p>
-              <p className="text-blue-600 text-xs">
+              <p className="text-blue-600 text-xs mb-2">
                 • Líneas verdes = Conexiones entre articulaciones
+              </p>
+              <p className="text-blue-600 text-xs">
+                • 🔄 Toca el botón superior derecho para cambiar de cámara
               </p>
             </div>
           )}
